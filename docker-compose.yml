@@ -1,13 +1,11 @@
 # Docker Compose 설정: API + Worker + Redis + PostgreSQL.
 
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: ai_detector
-      POSTGRES_PASSWORD: change_me_in_production
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ai_detector
     ports:
       - "5432:5432"
@@ -34,13 +32,13 @@ services:
   api:
     build: .
     environment:
-      DATABASE_URL: postgresql://ai_detector:change_me_in_production@postgres:5432/ai_detector
+      DATABASE_URL: postgresql://ai_detector:${POSTGRES_PASSWORD}@postgres:5432/ai_detector
       REDIS_URL: redis://redis:6379/0
       LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash-lite}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      API_KEY: ${API_KEY:-test-api-key-change-in-production}
+      API_KEY: ${API_KEY}
       ENV: production
     ports:
       - "8000:8000"
@@ -57,7 +55,7 @@ services:
       context: .
       dockerfile: Dockerfile.worker
     environment:
-      DATABASE_URL: postgresql://ai_detector:change_me_in_production@postgres:5432/ai_detector
+      DATABASE_URL: postgresql://ai_detector:${POSTGRES_PASSWORD}@postgres:5432/ai_detector
       REDIS_URL: redis://redis:6379/0
       LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
