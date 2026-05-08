@@ -96,8 +96,8 @@ docker-compose up -d
 # 로그 확인
 docker-compose logs -f api
 
-# 마이그레이션 실행
-docker-compose exec api uv run alembic upgrade head
+# 마이그레이션 실행 (컨테이너 시작 시 자동 적용됨)
+docker-compose exec api alembic upgrade head
 
 # 중지
 docker-compose down
@@ -212,7 +212,7 @@ docker-compose restart redis
 
 ### 데이터베이스 마이그레이션 오류
 ```bash
-docker-compose exec api uv run alembic upgrade head
+docker-compose exec api alembic upgrade head
 ```
 
 ### Playwright 렌더링 오류
