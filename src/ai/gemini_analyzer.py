@@ -67,7 +67,6 @@ class GeminiAnalyzer:
             config=types.GenerateContentConfig(
                 system_instruction=_SYSTEM_PROMPT,
                 tools=[types.Tool(url_context=types.UrlContext())],
-                response_mime_type="application/json",
                 max_output_tokens=2048,
             ),
         )
@@ -104,11 +103,15 @@ class GeminiAnalyzer:
             logger.debug(f"[{url}] finish_reason 확인 중 오류: {e}")
 
     def _parse_response(self, response_text: str) -> dict[str, Any]:
-        """Gemini 응답 파싱."""
+        """Gemini 응답 파싱. 마크다운 코드블록도 처리."""
+        text = response_text.strip()
+        if text.startswith("```"):
+            lines = text.splitlines()
+            text = "\n".join(lines[1:-1] if lines[-1] == "```" else lines[1:])
         try:
-            return json.loads(response_text)
+            return json.loads(text)
         except json.JSONDecodeError as e:
-            logger.error(f"JSON 파싱 실패: {e}")
+            logger.error(f"JSON 파싱 실패: {e}\n원본: {response_text[:200]}")
             return self._default_response()
 
     def _default_response(self) -> dict[str, Any]:
