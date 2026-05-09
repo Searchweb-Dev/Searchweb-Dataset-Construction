@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from src.db.models import AISite, AICategory, AITag
 from src.ai.analyzer import get_analyzer
 from src.ai.mcp_tools import render_website_sync
+from src.core.config import get_llm_provider
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +32,8 @@ class AIDetector:
                 logger.error(f"렌더링 실패: {render_result['error']}")
                 return None
 
-            # 2. Claude 분석
-            logger.info(f"Claude 분석 시작: {url}")
+            # 2. LLM 분석
+            logger.info(f"{get_llm_provider()} 분석 시작: {url}")
             analysis_result = self.analyzer.analyze_website(
                 url=url,
                 page_content=render_result["text_content"],
@@ -62,6 +63,10 @@ class AIDetector:
                 "site_id": ai_site.site_id if ai_site else None,
                 "is_ai_tool": analysis_result["is_ai_tool"],
                 "title": analysis_result["title"],
+                "description": analysis_result.get("description", ""),
+                "categories": analysis_result.get("categories", []),
+                "tags": analysis_result.get("tags", []),
+                "scores": analysis_result.get("scores", {}),
                 "confidence": analysis_result.get("confidence", 0),
             }
 

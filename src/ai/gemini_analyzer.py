@@ -1,5 +1,6 @@
 """Gemini API를 사용한 웹사이트 분석기."""
 
+import base64
 import json
 import logging
 import time
@@ -48,9 +49,14 @@ class GeminiAnalyzer:
         parts: list[Any] = [self._build_analysis_prompt(url, page_content)]
 
         if screenshot_base64:
+            image_bytes = (
+                base64.b64decode(screenshot_base64)
+                if isinstance(screenshot_base64, str)
+                else screenshot_base64
+            )
             parts.append(
                 types.Part.from_bytes(
-                    data=screenshot_base64.encode() if isinstance(screenshot_base64, str) else screenshot_base64,
+                    data=image_bytes,
                     mime_type="image/png",
                 )
             )
