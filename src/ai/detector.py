@@ -135,18 +135,17 @@ class AIDetector:
     def _save_categories(self, site_id: int, categories: list[dict[str, Any]]) -> None:
         """카테고리 저장."""
         try:
-            # 기존 카테고리 삭제
-            self.db.query(AICategory).filter(AICategory.site_id == site_id).delete()
+            # 세션 캐시를 우회하여 DB에 즉시 DELETE 반영 → autoflush 타이밍 문제 방지
+            self.db.query(AICategory).filter(AICategory.site_id == site_id).delete(synchronize_session=False)
 
             for cat in categories:
-                category = AICategory(
+                self.db.add(AICategory(
                     site_id=site_id,
                     level_1=cat.get("level_1", ""),
                     level_2=cat.get("level_2", ""),
                     level_3=cat.get("level_3", ""),
                     is_primary=cat.get("is_primary", False),
-                )
-                self.db.add(category)
+                ))
 
         except Exception as e:
             logger.error(f"카테고리 저장 실패: {e}")
@@ -154,15 +153,14 @@ class AIDetector:
     def _save_tags(self, site_id: int, tags: list[str]) -> None:
         """태그 저장."""
         try:
-            # 기존 태그 삭제
-            self.db.query(AITag).filter(AITag.site_id == site_id).delete()
+            # 세션 캐시를 우회하여 DB에 즉시 DELETE 반영
+            self.db.query(AITag).filter(AITag.site_id == site_id).delete(synchronize_session=False)
 
             for tag_name in tags:
-                tag = AITag(
+                self.db.add(AITag(
                     site_id=site_id,
                     tag_name=tag_name,
-                )
-                self.db.add(tag)
+                ))
 
         except Exception as e:
             logger.error(f"태그 저장 실패: {e}")
