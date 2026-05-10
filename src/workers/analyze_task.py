@@ -14,6 +14,7 @@ from src.ai.detector import AIDetector
 from src.workers.celery_app import app
 from src.core.config import get_db_url
 from src.core.result_writer import write_batch
+from src.core.url import normalize_url
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ def analyze_website(self, job_id: str, url: str) -> dict[str, Any]:
     Returns:
         분석 결과 딕셔너리
     """
+    url = normalize_url(url)
     db = SessionLocal()
 
     try:
@@ -185,6 +187,7 @@ def analyze_ai_tools_batch(limit: Optional[int], force_reanalyze: bool) -> dict[
 
     try:
         for url in urls:
+            url = normalize_url(url)
             # 기존 분석 결과 스킵 (실패 데이터는 재분석)
             if not force_reanalyze:
                 existing = db.query(AISite).filter(AISite.url == url).first()

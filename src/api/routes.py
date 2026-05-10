@@ -12,6 +12,7 @@ from src.db.session import SessionLocal
 from src.api.deps import verify_api_key
 from src.schemas import AnalysisJobRequest, AnalysisJobResponse, AISiteResponse, BatchAnalysisRequest, BatchAnalysisResponse
 from src.workers.analyze_task import analyze_website, analyze_ai_tools_batch
+from src.core.url import normalize_url
 
 router = APIRouter()
 
@@ -32,7 +33,7 @@ def analyze(
     db: Session = Depends(get_db),
 ):
     """분석 요청 (비동기 작업 생성)."""
-    url = str(request.url)
+    url = normalize_url(str(request.url))
 
     # 기존 분석 결과 확인 (재분석 강제 아님)
     if not request.force_reanalyze:

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from src.db.models import AISite, AICategory, AITag
 from src.ai.analyzer import get_analyzer
 from src.core.config import get_llm_provider
+from src.core.url import normalize_url
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,7 @@ class AIDetector:
     def detect_and_save(self, url: str) -> Optional[dict[str, Any]]:
         """웹사이트를 분석하고 결과를 DB에 저장."""
         try:
+            url = normalize_url(url)
             # 1. LLM 분석 (url_context 방식: Gemini가 직접 fetch)
             logger.info(f"{get_llm_provider()} 분석 시작: {url}")
             analysis_result = self.analyzer.analyze_website(url=url)
