@@ -112,7 +112,8 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - 불필요한 `---` 사용 자제
 
 ### 커밋 규칙
-- 커밋 전에 나한테 커밋 의사를 물어보고 진행해.
+~~ - 커밋 전에 나한테 커밋 의사를 물어보고 진행해. ~~
+- 코드 수정 및 변경 후 테스트까지 통과하면 커밋해.
 - Conventional Commits 형식 사용: `feat(scope): 설명`
   + 타입: `feat`, `fix`, `refactor`, `docs`, `test`, `chore` 등
 - scope는 변경 대상 모듈명 사용: `feat(planner): 기능 추가`
