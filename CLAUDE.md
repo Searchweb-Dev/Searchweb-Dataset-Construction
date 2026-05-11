@@ -84,7 +84,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - 도커: pip + requirements.txt 사용 (uv는 로컬 전용).
 
 ### 환경변수 규칙
-- `.env`는 **절대 직접 수정 금지**
+- `.env` **접근 금지**, **절대 직접 수정 금지**
 - 환경변수 추가·변경 -> `.env.example`만 수정.
 
 ### 절약 규칙
