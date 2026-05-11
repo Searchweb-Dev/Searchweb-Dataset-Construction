@@ -113,29 +113,66 @@ uv run celery -A src.workers.celery_app events
 
 ---
 
-## Phase 5: 통합 테스트 및 최적화 (1주) ✓
+## Phase 5: url_context 전환 및 안정화 (1주) ✓
 
-### 5.1 엔드투엔드 테스트 ✓
+### 5.1 Gemini url_context 전환 ✓
+- Playwright 렌더링 제거 → Gemini url_context 툴로 URL 직접 fetch 분석
+- `src/ai/gemini_analyzer.py` — url_context 기반 분석 로직으로 전면 재작성
+  * `response_mime_type`과 url_context 툴 충돌 해결 (JSON 프롬프트 명시 방식으로 전환)
+  * `max_output_tokens` 제한 제거 및 잘린 JSON 복구 로직 추가
+  * 마크다운 코드블록 포함 응답 파싱 강화
+  * `response.text is None` 예외 처리 추가
+
+### 5.2 안정성 버그픽스 ✓
+- `fix(detector)`: `ai_category` unique constraint 위반 — autoflush 타이밍 문제 해결
+- `fix(detector)`: 카테고리/태그 DELETE 후 flush 추가로 UniqueViolation 재발 방지
+- `fix(analyze_task)`: 분석 실패 데이터 캐시 히트 시 재분석하도록 수정
+- `fix(url)`: `www.` 제거 및 trailing slash 정규화로 중복 URL 통합
+- `fix(db/celery)`: DB 세션 중복 제거 및 Celery topic exchange 라우팅 수정
+- `fix(docker)`: api/worker 서비스에 data 디렉토리 볼륨 마운트 추가
+
+### 5.3 배포 준비 ✓
+- `Dockerfile`: API 서버 이미지
+- `Dockerfile.worker`: Celery Worker 이미지
+- `docker-compose.yml`: 전체 스택 구성 (PostgreSQL, Redis, Flower 포함)
+- `DEPLOYMENT.md`: 배포 및 운영 가이드
+
+### 5.4 엔드투엔드 테스트 ✓
 - `tests/e2e/test_analysis_flow.py` — API 통합 테스트 (9개)
   * 분석 요청 성공/실패
   * API Key 검증
   * Job 상태 조회
   * 강제 재분석
-
-### 5.2 성능 최적화 ✓
-- 프롬프트 캐싱 구현 (`ephemeral` 캐시)
 - 성능 벤치마크 (8개 테스트)
   * API 응답 시간 < 1초 ✓
   * 상태 조회 < 200ms ✓
-  * 다중 요청 처리 ✓
   * 처리량 > 10 req/sec ✓
 
-### 5.3 배포 준비 ✓
-- `Dockerfile`: API 서버 이미지
-- `Dockerfile.worker`: Celery Worker 이미지
-- `docker-compose.yml`: 전체 스택 구성
-  * PostgreSQL, Redis, Flower 포함
-- `DEPLOYMENT.md`: 배포 및 운영 가이드
+---
+
+## Phase 6: 코드 품질 개선 및 리팩터링 ✓
+
+### 6.1 프롬프트 통합 ✓
+- `docs/PROMPTS.md` 제거 — `src/ai/prompts.py`로 단일화
+- `CLAUDE_ANALYSIS_PROMPT` 제거 — `ANALYSIS_PROMPT` 하나로 통일 (LLM 프로바이더별 분리 불필요)
+- 프롬프트 상수: `SYSTEM_PROMPT`, `ANALYSIS_PROMPT`
+- categories 1개, tags 최대 3개로 출력 제한 강화
+
+### 6.2 DB 모델 정리 ✓
+- `src/db/models/ai_site.py` — `summary_ko` 필드 제거 (미사용 컬럼)
+- `src/schemas/site.py` — `AISiteResponse`에서 `summary_ko` 제거
+- Alembic 마이그레이션 추가: `a1b2c3d4e5f6_remove_summary_ko_from_ai_site`
+
+### 6.3 Claude 프로바이더 최적화 ✓
+- Claude 분석 시 `page_content` 전송 제거 — url만으로 분석 (불필요한 토큰 절감)
+- `src/ai/analyzer.py` — Claude 호출 인터페이스 단순화
+
+### 6.4 배치 처리 성능 최적화 ✓
+- `perf(batch)`: 배치 분석 병렬화 구현
+- DB 쿼리 최적화 (불필요한 조회 제거)
+
+### 6.5 코드 리뷰 지적 사항 수정 ✓
+- `fix(worker)`: 코드 리뷰 지적 사항 일괄 수정
 
 ---
 
@@ -143,9 +180,10 @@ uv run celery -A src.workers.celery_app events
 
 1. **DB 스키마 정의** (Phase 1)
 2. **API 엔드포인트** (Phase 2)
-3. **Gemini + MCP 통합** (Phase 3)
+3. **Gemini + LLM 통합** (Phase 3)
 4. **Celery 비동기 처리** (Phase 4)
-5. **통합 테스트** (Phase 5)
+5. **url_context 전환 및 안정화** (Phase 5)
+6. **코드 품질 개선 및 리팩터링** (Phase 6)
 
 ---
 
@@ -167,19 +205,20 @@ uv run celery -A src.workers.celery_app events
 ## 성공 기준
 
 - ✓ API 응답 시간 < 1초 (Job 생성)
-- ✓ 분석 완료 시간 < 60초 (Gemini + 렌더링)
+- ✓ 분석 완료 시간 < 60초
 - ✓ Gemini free tier 활용으로 API 비용 절감
 - ✓ 재시도 포함 성공률 > 95%
 - ✓ 모든 E2E 테스트 통과
 
-## 구현 현황 (2026-05-04)
+## 구현 현황 (2026-05-11)
 
 ### 완료된 것 ✓
 - Phase 1: DB 모델, 마이그레이션, Pydantic 스키마 ✓
 - Phase 2: FastAPI API 엔드포인트 ✓
-- Phase 3: Gemini API + MCP 통합 ✓
+- Phase 3: Gemini API + LLM 통합 ✓
 - Phase 4: Celery 비동기 처리 ✓
-- Phase 5: 통합 테스트 및 최적화 ✓
+- Phase 5: url_context 전환 및 안정화 ✓
+- Phase 6: 코드 품질 개선 및 리팩터링 ✓
 
 ### 테스트 결과
 - **E2E 테스트**: 9개 모두 통과 ✓
