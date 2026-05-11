@@ -1,4 +1,25 @@
-"""Gemini 분석용 프롬프트 상수."""
+"""LLM 분석용 프롬프트 상수.
+
+프로바이더별 사용:
+- Gemini: SYSTEM_PROMPT + ANALYSIS_PROMPT (url만 전달, Gemini가 직접 fetch)
+- Claude: SYSTEM_PROMPT + CLAUDE_ANALYSIS_PROMPT (url + page_content 전달)
+
+응답 스키마:
+{
+  "is_ai_tool": bool,
+  "title": str,
+  "description": str,          # 한글 50자 이내
+  "categories": [{
+    "level_1": str,             # 대분류: text|image|video|audio|code|multimodal|data|business
+    "level_2": str,             # 중분류: text-generation|image-generation|code-generation 등
+    "level_3": str | None,      # 소분류 (추후 사용)
+    "is_primary": bool
+  }],                           # 1개
+  "tags": [str],                # 최대 3개
+  "scores": {"utility": int, "trust": int, "originality": int},  # 1-10
+  "confidence": float           # 0-1
+}
+"""
 
 SYSTEM_PROMPT = """당신은 웹사이트 분석 전문가입니다.
 주어진 URL과 페이지 내용을 분석하여 다음을 판정하세요:
@@ -18,6 +39,37 @@ SYSTEM_PROMPT = """당신은 웹사이트 분석 전문가입니다.
 ANALYSIS_PROMPT = """다음 웹사이트를 분석하고 결과를 순수 JSON만 반환하세요. 설명, 마크다운, 코드블록 없이 JSON 객체만 출력하세요.
 
 URL: {url}
+
+반환 형식 (이 JSON 구조만 출력):
+{{
+  "is_ai_tool": true,
+  "title": "서비스 제목",
+  "description": "한글 50자 이내",
+  "categories": [
+    {{"level_1": "대분류", "level_2": "중분류", "level_3": "소분류", "is_primary": true}}
+  ],
+  "tags": ["태그1", "태그2", "태그3"],
+  "scores": {{"utility": 7, "trust": 8, "originality": 6}},
+  "confidence": 0.9
+}}
+
+제약:
+- description: 한글 50자 이내
+- categories: 1개
+- tags: 최대 3개
+
+URL에 접근할 수 없거나 분석이 불가한 경우에도 반드시 위 JSON 형식으로 반환하세요:
+- is_ai_tool: false
+- confidence: 0
+- 나머지 필드: 빈 값
+"""
+
+CLAUDE_ANALYSIS_PROMPT = """다음 웹사이트를 분석하고 결과를 순수 JSON만 반환하세요. 설명, 마크다운, 코드블록 없이 JSON 객체만 출력하세요.
+
+URL: {url}
+
+페이지 내용:
+{page_content}
 
 반환 형식 (이 JSON 구조만 출력):
 {{
