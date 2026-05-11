@@ -23,14 +23,14 @@ app.conf.update(
 )
 
 # 작업 큐 설정
-default_exchange = Exchange("tasks", type="direct")
+default_exchange = Exchange("tasks", type="topic")
 app.conf.task_queues = (
     Queue("analyze", exchange=default_exchange, routing_key="analyze.#"),
 )
 
 # 작업별 라우팅
 app.conf.task_routes = {
-    "src.workers.analyze_task.*": {"queue": "analyze"},
+    "src.workers.analyze_task.*": {"queue": "analyze", "routing_key": "analyze.default"},
 }
 
 # 재시도 정책

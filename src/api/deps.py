@@ -3,17 +3,8 @@
 from fastapi import Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 
-from src.db.session import SessionLocal
+from src.db.session import get_db  # noqa: F401
 from src.core.config import get_api_key
-
-
-def get_db() -> Session:
-    """DB 세션 의존성."""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 def verify_api_key(x_api_key: str = Header(...)) -> str:

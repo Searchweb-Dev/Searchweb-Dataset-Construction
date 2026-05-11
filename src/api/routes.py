@@ -8,22 +8,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from src.db.models import AnalysisJob, AISite
-from src.db.session import SessionLocal
+from src.db.session import get_db
 from src.api.deps import verify_api_key
 from src.schemas import AnalysisJobRequest, AnalysisJobResponse, AISiteResponse, BatchAnalysisRequest, BatchAnalysisResponse
 from src.workers.analyze_task import analyze_website, analyze_ai_tools_batch
 from src.core.url import normalize_url
 
 router = APIRouter()
-
-
-def get_db() -> Session:
-    """DB 세션."""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 @router.post("/analyze", status_code=202, response_model=AnalysisJobResponse)

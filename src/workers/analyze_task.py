@@ -6,21 +6,15 @@ import os
 from datetime import datetime, timezone
 from typing import Optional, Any
 from uuid import uuid4
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 from src.db.models import AnalysisJob, AISite
+from src.db.session import SessionLocal
 from src.ai.detector import AIDetector
 from src.workers.celery_app import app
-from src.core.config import get_db_url
 from src.core.result_writer import write_batch
 from src.core.url import normalize_url
 
 logger = logging.getLogger(__name__)
-
-# DB 세션 생성
-engine = create_engine(get_db_url())
-SessionLocal = sessionmaker(bind=engine)
 
 _FAILURE_SENTINELS = {"Unknown", "분석 실패", ""}
 
@@ -160,7 +154,7 @@ def _load_ai_tools_urls(limit: Optional[int] = None) -> list[str]:
     return urls
 
 
-@app.task(name="analyze_ai_tools_batch")
+@app.task
 def analyze_ai_tools_batch(limit: Optional[int], force_reanalyze: bool) -> dict[str, Any]:
     """
     ai-tools.json 전체(또는 일부)를 순차 분석하고 결과를 파일 한 개에 저장한다.
