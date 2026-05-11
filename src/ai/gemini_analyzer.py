@@ -74,7 +74,9 @@ class GeminiAnalyzer:
         )
 
         self._check_finish_reason(url, response)
-        result = self._parse_response(response.text)
+        if not response.text:
+            logger.warning(f"[{url}] Gemini 응답 텍스트가 비어있습니다.")
+        result = self._parse_response(response.text or "")
 
         elapsed = time.time() - start_time
         logger.info(f"Gemini 분석 완료: {elapsed:.2f}초")
