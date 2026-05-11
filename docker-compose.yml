@@ -49,6 +49,7 @@ services:
         condition: service_healthy
     volumes:
       - ./src:/app/src
+      - ./data:/app/data
 
   worker:
     build:
@@ -68,6 +69,7 @@ services:
         condition: service_healthy
     volumes:
       - ./src:/app/src
+      - ./data:/app/data
 
   flower:
     image: mher/flower
