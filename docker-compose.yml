@@ -71,7 +71,7 @@ services:
 
   flower:
     image: mher/flower
-    command: celery --broker=redis://redis:6379/0 --backend=redis://redis:6379/0 flower
+    command: celery --broker=redis://redis:6379/0 --result-backend=redis://redis:6379/0 flower
     ports:
       - "5555:5555"
     depends_on:
