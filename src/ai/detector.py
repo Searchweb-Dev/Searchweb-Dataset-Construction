@@ -41,8 +41,11 @@ class AIDetector:
             )
 
             if ai_site:
-                self._save_categories(ai_site.site_id, analysis_result["categories"])
-                self._save_tags(ai_site.site_id, analysis_result["tags"])
+                self._save_categories_and_tags(
+                    ai_site.site_id,
+                    analysis_result["categories"],
+                    analysis_result["tags"],
+                )
 
             self.db.commit()
             logger.info(f"분석 결과 저장 완료: {url}")
@@ -117,11 +120,16 @@ class AIDetector:
             logger.error(f"사이트 저장 실패: {e}")
             return None
 
-    def _save_categories(self, site_id: int, categories: list[dict[str, Any]]) -> None:
-        """카테고리 저장."""
+    def _save_categories_and_tags(
+        self,
+        site_id: int,
+        categories: list[dict[str, Any]],
+        tags: list[str],
+    ) -> None:
+        """카테고리·태그 일괄 삭제 후 재저장 (flush 1회)."""
         try:
-            # 세션 캐시를 우회하여 DB에 즉시 DELETE 반영 → autoflush 타이밍 문제 방지
             self.db.query(AICategory).filter(AICategory.site_id == site_id).delete(synchronize_session=False)
+            self.db.query(AITag).filter(AITag.site_id == site_id).delete(synchronize_session=False)
             self.db.flush()
 
             for cat in categories:
@@ -133,21 +141,8 @@ class AIDetector:
                     is_primary=cat.get("is_primary", False),
                 ))
 
-        except Exception as e:
-            logger.error(f"카테고리 저장 실패: {e}")
-
-    def _save_tags(self, site_id: int, tags: list[str]) -> None:
-        """태그 저장."""
-        try:
-            # 세션 캐시를 우회하여 DB에 즉시 DELETE 반영
-            self.db.query(AITag).filter(AITag.site_id == site_id).delete(synchronize_session=False)
-            self.db.flush()
-
             for tag_name in tags:
-                self.db.add(AITag(
-                    site_id=site_id,
-                    tag_name=tag_name,
-                ))
+                self.db.add(AITag(site_id=site_id, tag_name=tag_name))
 
         except Exception as e:
-            logger.error(f"태그 저장 실패: {e}")
+            logger.error(f"카테고리/태그 저장 실패: {e}")

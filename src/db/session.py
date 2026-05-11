@@ -1,13 +1,12 @@
 """데이터베이스 세션 설정."""
 
-import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
+from src.core.config import get_db_url
 
 engine = create_engine(
-    DATABASE_URL,
+    get_db_url(),
     echo=False,
     pool_pre_ping=True,
 )
