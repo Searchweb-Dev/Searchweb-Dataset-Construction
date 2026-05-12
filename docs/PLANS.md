@@ -210,7 +210,38 @@ uv run celery -A src.workers.celery_app events
 - ✓ 재시도 포함 성공률 > 95%
 - ✓ 모든 E2E 테스트 통과
 
-## 구현 현황 (2026-05-11)
+---
+
+## Phase 7: 규칙기반 URL 분류기 통합 ✓
+
+### 7.1 src/rule/ 서브패키지 이식 ✓
+- `ai_url_classifier/` 코드를 `src/rule/`로 이식 (원본 무수정)
+- 상대 임포트 → 절대 임포트(`from src.rule.*`) 변환
+- `ai_url_classifier/` 참조 없음, `sys.path` 조작 없음
+
+### 7.2 RuleAnalyzer 클래스 구현 ✓
+- `src/rule/analyzer.py` — `RuleAnalyzer` 클래스 (8단계 파이프라인 실행)
+- `analyze_website(url: str) -> dict` 단일 공개 메서드
+- `_map_to_analysis_dict()` 순수 변환 함수 (EvaluationResult → 분석 dict)
+
+### 7.3 CLASSIFIER_MODE 환경변수 분기 ✓
+- `src/core/config.py` — `get_classifier_mode()` 헬퍼 추가
+- `src/ai/analyzer.py` — `get_analyzer()` 분기 확장
+- `CLASSIFIER_MODE=rule` → `RuleAnalyzer`, `CLASSIFIER_MODE=llm`(기본) → 기존 LLM 분석기
+- 상위 호출자(`analyze_task.py`, `detector.py`) 무수정
+
+### 7.4 단위 테스트 작성 ✓
+- `tests/rule/test_map_to_analysis_dict.py` — 변환 규칙 18개 테스트
+- `tests/rule/test_get_classifier_mode.py` — 환경변수 헬퍼 9개 테스트
+- `tests/rule/test_get_analyzer_branching.py` — 분기 로직 6개 테스트
+- `pytest tests/rule/ -v` — 33개 전체 통과
+
+### 7.5 dev 의존성 추가 ✓
+- `pyproject.toml` — `ruff>=0.4.0`, `mypy>=1.10.0` 추가
+
+---
+
+## 구현 현황 (2026-05-12)
 
 ### 완료된 것 ✓
 - Phase 1: DB 모델, 마이그레이션, Pydantic 스키마 ✓
@@ -219,12 +250,13 @@ uv run celery -A src.workers.celery_app events
 - Phase 4: Celery 비동기 처리 ✓
 - Phase 5: url_context 전환 및 안정화 ✓
 - Phase 6: 코드 품질 개선 및 리팩터링 ✓
+- Phase 7: 규칙기반 URL 분류기 통합 (CLASSIFIER_MODE 환경변수 분기) ✓
 
 ### 테스트 결과
 - **E2E 테스트**: 9개 모두 통과 ✓
-- **단위 테스트**: 22개 모두 통과 ✓
+- **단위 테스트**: 55개 모두 통과 ✓(22 + 33)
 - **성능 테스트**: 8개 모두 통과 ✓
-- **총 테스트**: 29개 통과, 0개 실패 ✓
+- **총 테스트**: 62개 통과, 0개 실패 ✓(29 + 33)
 
 ### 배포 가능 상태
 - Docker Compose 설정 완료
