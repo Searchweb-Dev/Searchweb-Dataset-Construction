@@ -13,7 +13,8 @@ Spring Backend와 분리되어 독립적으로 동작하며,
 - FastAPI 기반 비동기 API (Spring Backend와 통신)
 - Celery를 통한 비동기 분석 작업 처리
 - **Gemini API url_context 툴**을 통한 URL 직접 분석
-- Gemini를 통한 AI 사이트 판별 (판별, 분류, 점수화, 요약)
+- Gemini/Claude를 통한 AI 사이트 판별 (판별, 분류, 점수화, 요약)
+- 규칙기반 분류기를 통한 오프라인 판별 (CLASSIFIER_MODE=rule)
 - 분석 결과 저장 (PostgreSQL)
 - 분석 상태 관리 (Redis)
 
@@ -139,11 +140,15 @@ Worker는 AI 분석 전용 서비스다.
 
 ---
 
-## Analysis Layer (Gemini url_context)
+## Analysis Layer
+
+`CLASSIFIER_MODE` 환경변수로 분석 방식을 선택한다 (기본값: `llm`).
+
+### LLM 분석기 (CLASSIFIER_MODE=llm)
 
 **기술:**
-- Google Gemini API
-- url_context Tool
+- Google Gemini API / Anthropic Claude API
+- url_context Tool (Gemini 전용)
 
 **역할:**
 
@@ -193,6 +198,42 @@ response = client.models.generate_content(
 로컬 브라우저 렌더링이 필요한 경우(SPA 완전 렌더링, 스크린샷 시각 분석 등)를 위해
 기존 Playwright 로직은 `src/ai/_playwright_renderer.py`에 보존되어 있다.
 복원 방법은 해당 파일 상단 주석 참조.
+
+---
+
+### 규칙기반 분석기 (CLASSIFIER_MODE=rule)
+
+**기술:**
+- requests + Playwright 폴백 (PageFetcher)
+- 8단계 파이프라인 (신호 추출 → AI 범위 분류 → 분류 체계 → 기준 평가 → 점수화)
+
+**역할:**
+
+외부 API 호출 없이 로컬에서 웹사이트를 fetch하고 규칙기반으로 분석한다.
+
+```
+URL
+ ↓
+PageFetcher (requests → Playwright 폴백)
+ ↓
+8단계 파이프라인
+  step1: 페이지 수집
+  step2: 신호 추출
+  step3: AI 범위 분류
+  step4: 분류 체계 결정
+  step5: 기준 평가
+  step6: 점수화 및 상태 예측
+  step7: 상태 검토 및 확정
+  step8: 요약 생성
+ ↓
+EvaluationResult → 분석 dict
+```
+
+**장점:**
+
+- API 비용 없음 → 대량 처리에 유리
+- 오프라인 환경에서도 동작
+- LLM API 의존성 없는 빠른 응답
 
 ---
 
@@ -304,6 +345,21 @@ sw-test/
 │   │   ├── detector.py              # AI 판별 및 DB 저장 로직
 │   │   ├── mcp_tools.py             # (stub) 렌더링 도구 진입점
 │   │   └── _playwright_renderer.py  # Playwright 렌더링 보존 (비활성)
+│   ├── rule/                            # 규칙기반 분류기 (CLASSIFIER_MODE=rule)
+│   │   ├── analyzer.py                  # RuleAnalyzer (8단계 파이프라인)
+│   │   ├── pipeline.py                  # run_quality_pipeline
+│   │   ├── config.py                    # EvalConfig
+│   │   ├── models.py                    # EvaluationResult, CriterionResult
+│   │   ├── keywords.py                  # 키워드 상수
+│   │   ├── utils.py                     # 헬퍼 함수
+│   │   ├── fetchers/
+│   │   │   └── page_fetcher.py          # HTTP fetch + Playwright 폴백
+│   │   └── classifiers/
+│   │       ├── ai_scope_classifier.py
+│   │       ├── criteria_evaluator.py
+│   │       ├── discovery_signals.py
+│   │       ├── status_policy.py
+│   │       └── taxonomy_classifier.py
 │   ├── workers/
 │   │   ├── __init__.py
 │   │   ├── celery_app.py            # Celery 앱 초기화
@@ -328,7 +384,8 @@ sw-test/
 ├── tests/
 │   ├── e2e/
 │   ├── performance/
-│   └── unit/
+│   ├── unit/
+│   └── rule/
 ├── alembic/                         # DB 마이그레이션
 ├── docs/                            # 문서
 ├── data/                            # 분석 대상 및 결과 파일
