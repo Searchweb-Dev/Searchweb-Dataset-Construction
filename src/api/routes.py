@@ -7,12 +7,13 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from src.db.models import AnalysisJob, AISite
+from src.db.models import AnalysisJob, AISite, AICategory, AITag
 from src.db.session import get_db
 from src.api.deps import verify_api_key
-from src.schemas import AnalysisJobRequest, AnalysisJobResponse, AISiteResponse, BatchAnalysisRequest, BatchAnalysisResponse
+from src.schemas import AnalysisJobRequest, AnalysisJobResponse, AISiteResponse, BatchAnalysisRequest, BatchAnalysisResponse, CategoryResponse, ScoreResponse
 from src.workers.analyze_task import analyze_website, analyze_ai_tools_batch
 from src.core.url import normalize_url
+from src.core.enums import JobStatus
 
 router = APIRouter()
 
@@ -33,7 +34,7 @@ def analyze(
             # 기존 결과가 있으면 해당 job 반환
             job = db.query(AnalysisJob).filter(
                 AnalysisJob.site_id == existing.site_id,
-                AnalysisJob.status == "success"
+                AnalysisJob.status == JobStatus.SUCCESS
             ).order_by(AnalysisJob.completed_at.desc()).first()
 
             if job:
@@ -52,7 +53,7 @@ def analyze(
     job = AnalysisJob(
         job_id=uuid4(),
         url=url,
-        status="pending",
+        status=JobStatus.PENDING,
         retry_count=0,
         request_source="api",
     )
@@ -127,20 +128,15 @@ def get_job_status(
 
     # 결과 데이터 로드
     result = None
-    if job.status == "success" and job.site_id:
+    if job.status == JobStatus.SUCCESS and job.site_id:
         site = db.query(AISite).filter(AISite.site_id == job.site_id).first()
         if site:
-            # 카테고리 및 태그 로드
-            from src.db.models import AICategory, AITag
-
             categories = db.query(AICategory).filter(
                 AICategory.site_id == site.site_id
             ).all()
             tags = db.query(AITag).filter(
                 AITag.site_id == site.site_id
             ).all()
-
-            from src.schemas import CategoryResponse, ScoreResponse
 
             result = AISiteResponse(
                 site_id=site.site_id,

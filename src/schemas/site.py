@@ -19,9 +19,9 @@ class CategoryResponse(BaseModel):
 class ScoreResponse(BaseModel):
     """점수 스키마."""
 
-    utility: Optional[int] = Field(None, ge=1, le=10)
-    trust: Optional[int] = Field(None, ge=1, le=10)
-    originality: Optional[int] = Field(None, ge=1, le=10)
+    utility: Optional[int] = Field(None, ge=0, le=10)
+    trust: Optional[int] = Field(None, ge=0, le=10)
+    originality: Optional[int] = Field(None, ge=0, le=10)
 
 
 class AISiteResponse(BaseModel):

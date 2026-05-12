@@ -14,6 +14,9 @@ from src.ai.detector import AIDetector
 from src.workers.celery_app import app
 from src.core.result_writer import write_batch
 from src.core.url import normalize_url
+from src.core.util import utc_now
+from src.core.exceptions import AnalysisError
+from src.core.enums import JobStatus
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +25,6 @@ logger = logging.getLogger(__name__)
 _BATCH_CONCURRENCY = int(os.getenv("BATCH_CONCURRENCY", "5"))
 
 _FAILURE_SENTINELS = {"Unknown", "분석 실패", ""}
-
-# DB 컬럼이 DateTime(timezone=False)이므로 naive UTC 사용
-_now = lambda: datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def _is_failed_analysis(site: AISite) -> bool:
@@ -61,8 +61,8 @@ def analyze_website(self, job_id: str, url: str) -> dict[str, Any]:
             logger.error(f"Job을 찾을 수 없음: {job_id}")
             return {"error": "Job not found"}
 
-        job.status = "processing"
-        job.started_at = _now()
+        job.status = JobStatus.PROCESSING
+        job.started_at = utc_now()
         db.commit()
         logger.info(f"Job 상태 업데이트 (processing): {job_id}")
 
@@ -75,13 +75,13 @@ def analyze_website(self, job_id: str, url: str) -> dict[str, Any]:
                 )
             else:
                 logger.info(f"캐시에 결과가 있어 결과 파일 쓰기를 건너뜁니다: {url}")
-                job.status = "success"
-                job.completed_at = _now()
+                job.status = JobStatus.SUCCESS
+                job.completed_at = utc_now()
                 job.site_id = existing.site_id
                 db.commit()
                 return {
                     "job_id": str(job_id),
-                    "status": "success",
+                    "status": JobStatus.SUCCESS,
                     "site_id": existing.site_id,
                     "is_ai_tool": existing.is_ai_tool,
                 }
@@ -90,17 +90,17 @@ def analyze_website(self, job_id: str, url: str) -> dict[str, Any]:
         result = detector.detect_and_save(url)
 
         if not result:
-            raise Exception("분석 실패")
+            raise AnalysisError("분석 실패")
 
-        job.status = "success"
-        job.completed_at = _now()
+        job.status = JobStatus.SUCCESS
+        job.completed_at = utc_now()
         job.site_id = result.get("site_id")
         db.commit()
         logger.info(f"분석 완료: {job_id} -> {result}")
 
         return {
             "job_id": str(job_id),
-            "status": "success",
+            "status": JobStatus.SUCCESS,
             "site_id": result.get("site_id"),
             "is_ai_tool": result.get("is_ai_tool"),
         }
@@ -116,11 +116,11 @@ def analyze_website(self, job_id: str, url: str) -> dict[str, Any]:
             job.error_message = str(e)
 
             if self.request.retries < self.max_retries:
-                job.status = "pending"
+                job.status = JobStatus.PENDING
                 logger.info(f"재시도 대기: {job_id} (시도: {self.request.retries + 1}/{self.max_retries})")
             else:
-                job.status = "failed"
-                job.completed_at = _now()
+                job.status = JobStatus.FAILED
+                job.completed_at = utc_now()
                 logger.error(f"최종 실패: {job_id}")
 
             db.commit()
@@ -128,7 +128,7 @@ def analyze_website(self, job_id: str, url: str) -> dict[str, Any]:
         if self.request.retries < self.max_retries:
             raise self.retry(exc=Exception(str(e)), countdown=60 * (self.request.retries + 1))
 
-        return {"job_id": str(job_id), "status": "failed", "error": str(e)}
+        return {"job_id": str(job_id), "status": JobStatus.FAILED, "error": str(e)}
 
     finally:
         db.close()
@@ -186,15 +186,15 @@ def _update_job_statuses(
             job.job_id: job
             for job in db.query(AnalysisJob).filter(AnalysisJob.job_id.in_(all_ids)).all()
         }
-        now = _now()
+        now = utc_now()
         for job_id, site_id in success_map.items():
             if job := jobs.get(job_id):
-                job.status = "success"
+                job.status = JobStatus.SUCCESS
                 job.site_id = site_id
                 job.completed_at = now
         for job_id, error in failure_map.items():
             if job := jobs.get(job_id):
-                job.status = "failed"
+                job.status = JobStatus.FAILED
                 job.error_message = error
                 job.completed_at = now
         db.commit()
@@ -252,12 +252,12 @@ def analyze_ai_tools_batch(limit: Optional[int], force_reanalyze: bool) -> dict[
         else:
             pending_urls = normalized_urls
 
-        now = _now()
+        now = utc_now()
         for url in pending_urls:
             job = AnalysisJob(
                 job_id=uuid4(),
                 url=url,
-                status="processing",
+                status=JobStatus.PROCESSING,
                 started_at=now,
                 retry_count=0,
                 request_source="batch_ai_tools",
@@ -290,7 +290,8 @@ def analyze_ai_tools_batch(limit: Optional[int], force_reanalyze: bool) -> dict[
                 logger.error(f"배치 항목 분석 실패: {url} ({error})")
                 failure_map[job_id] = error
             else:
-                assert result is not None
+                if result is None:
+                    raise AnalysisError(f"배치 분석 결과가 None입니다: {url}")
                 batch_results.append((url, result))
                 success_map[job_id] = result.get("site_id")
                 logger.info(f"배치 분석 완료: {url}")

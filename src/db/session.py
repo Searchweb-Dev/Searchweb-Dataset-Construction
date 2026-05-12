@@ -1,5 +1,7 @@
 """데이터베이스 세션 설정."""
 
+from typing import Generator
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
@@ -30,7 +32,7 @@ else:
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
-def get_db() -> Session:
+def get_db() -> Generator[Session, None, None]:
     """DB 세션 생성."""
     db = SessionLocal()
     try:

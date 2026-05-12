@@ -99,7 +99,7 @@ class GeminiAnalyzer:
             return self._default_response()
 
     def _recover_truncated_json(self, text: str) -> dict[str, Any] | None:
-        """잘린 JSON을 닫는 괄호를 추가해 복구 시도."""
+        """잘린 JSON을 닫는 괄호를 추가해 복구 시도. 복구 후 필수 키 존재 여부를 검증한다."""
         depth_curly = text.count("{") - text.count("}")
         depth_square = text.count("[") - text.count("]")
         if depth_curly <= 0 and depth_square <= 0:
@@ -107,9 +107,16 @@ class GeminiAnalyzer:
         candidate = text.rstrip().rstrip(",")
         candidate += "]" * depth_square + "}" * depth_curly
         try:
-            return json.loads(candidate)
+            recovered = json.loads(candidate)
         except json.JSONDecodeError:
             return None
+        # 복구된 JSON이 최소 필수 필드를 포함하는지 검증
+        if not isinstance(recovered, dict):
+            return None
+        if "is_ai_tool" not in recovered or "confidence" not in recovered:
+            logger.warning("복구된 JSON에 필수 키(is_ai_tool, confidence)가 없습니다.")
+            return None
+        return recovered
 
     def _default_response(self) -> dict[str, Any]:
         """기본 응답 구조."""

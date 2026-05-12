@@ -23,8 +23,17 @@ def get_db_url() -> str:
 
 
 def get_api_key() -> str:
-    """API 키 반환 (기본값)."""
-    return os.getenv("API_KEY", "test-api-key-change-in-production")
+    """API 키 반환. 환경변수 미설정 시 RuntimeError 발생."""
+    key = os.getenv("API_KEY")
+    if not key:
+        raise RuntimeError("API_KEY 환경변수가 설정되지 않았습니다.")
+    return key
+
+
+def get_allowed_origins() -> list[str]:
+    """허용된 CORS 오리진 목록 반환."""
+    raw = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8000")
+    return [o.strip() for o in raw.split(",") if o.strip()]
 
 
 def get_llm_provider() -> str:

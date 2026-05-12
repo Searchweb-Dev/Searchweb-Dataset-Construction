@@ -1,7 +1,6 @@
 """AI 웹사이트 판별 및 분석 결과 저장 로직."""
 
 import logging
-from datetime import datetime, timezone
 from typing import Optional, Any
 from sqlalchemy.orm import Session
 
@@ -9,10 +8,9 @@ from src.db.models import AISite, AICategory, AITag
 from src.ai.analyzer import get_analyzer
 from src.core.config import get_llm_provider
 from src.core.url import normalize_url
+from src.core.util import utc_now
 
 logger = logging.getLogger(__name__)
-
-_NOW = lambda: datetime.now(timezone.utc).replace(tzinfo=None)  # naive UTC (DB 컬럼 DateTime(timezone=False) 대응)
 
 
 class AIDetector:
@@ -56,6 +54,7 @@ class AIDetector:
                 "tags": analysis_result.get("tags", []),
                 "scores": analysis_result.get("scores", {}),
                 "confidence": analysis_result.get("confidence", 0),
+                "analyzer": analysis_result.get("analyzer"),
             }
 
         except Exception as e:
@@ -80,7 +79,7 @@ class AIDetector:
     def _save_site(self, url: str, analysis: dict[str, Any]) -> Optional[AISite]:
         """AI 사이트 정보 저장."""
         scores = analysis.get("scores", {})
-        now = _NOW()
+        now = utc_now()
 
         existing = self.db.query(AISite).filter(AISite.url == url).first()
         if existing:

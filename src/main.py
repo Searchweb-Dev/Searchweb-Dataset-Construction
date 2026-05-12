@@ -1,14 +1,12 @@
 """FastAPI 메인 앱."""
 
-import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.db.models.base import Base
 from src.db.session import engine
 from src.api import routes
-
-Base.metadata.create_all(bind=engine)
+from src.core.config import get_allowed_origins
 
 app = FastAPI(
     title="AI Site Detection Worker",
@@ -18,13 +16,19 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=get_allowed_origins(),
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 app.include_router(routes.router, prefix="/api/v1")
+
+
+@app.on_event("startup")
+async def startup() -> None:
+    """앱 시작 시 DB 테이블 생성."""
+    Base.metadata.create_all(bind=engine)
 
 
 @app.get("/health")
