@@ -25,79 +25,85 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.post("", status_code=202, response_model=AnalysisJobResponse)
+@router.post("", status_code=202, response_model=list[AnalysisJobResponse])
 def analyze(
     request: AnalysisJobRequest,
     api_key: str = Depends(verify_api_key),
     db: Session = Depends(get_db),
 ):
-    """단일 URL을 비동기로 분석하는 작업을 생성한다.
+    """URL 목록을 비동기로 분석하는 작업을 생성한다 (단건·다건 모두 지원).
 
-    이미 분석된 URL이 있으면 기존 성공 job을 즉시 반환한다.
-    force_reanalyze=true이면 기존 결과를 무시하고 새 작업을 생성한다.
+    이미 LLM으로 분석된 URL은 기존 성공 job을 즉시 반환한다.
+    rule로 분석된 URL은 LLM으로 재분석한다.
+    force_reanalyze=true이면 모든 URL을 새로 분석한다.
     작업 결과는 GET /jobs/{job_id}로 폴링해 확인한다.
 
     Args:
-        request: 분석할 URL과 재분석 강제 여부.
+        request: 분석할 URL 목록(최대 100개)과 재분석 강제 여부.
         api_key: API 키 검증 의존성.
         db: DB 세션 의존성.
 
     Returns:
-        생성된 분석 작업 정보 (status=pending 또는 기존 success job).
+        URL별 분석 작업 정보 리스트.
 
     Raises:
         HTTPException 422: URL 형식 오류.
     """
-    url = normalize_url(str(request.url))
+    responses: list[AnalysisJobResponse] = []
 
-    if not request.force_reanalyze:
-        existing = db.query(AISite).filter(AISite.url == url).first()
-        # rule로 분석된 사이트는 LLM으로 재분석이 필요하므로 캐시 히트로 보지 않는다
-        if existing and existing.analyzer != "rule":
-            job = (
-                db.query(AnalysisJob)
-                .filter(
-                    AnalysisJob.site_id == existing.site_id,
-                    AnalysisJob.status == JobStatus.SUCCESS,
-                )
-                .order_by(AnalysisJob.completed_at.desc())
-                .first()
-            )
-            if job:
-                return AnalysisJobResponse(
-                    job_id=job.job_id,
-                    url=job.url,
-                    status=job.status,
-                    created_at=job.created_at,
-                    started_at=job.started_at,
-                    completed_at=job.completed_at,
-                    retry_count=job.retry_count,
-                    error_message=job.error_message,
-                )
+    for raw_url in request.urls:
+        url = normalize_url(str(raw_url))
 
-    job = AnalysisJob(
-        job_id=uuid4(),
-        url=url,
-        status=JobStatus.PENDING,
-        retry_count=0,
-        request_source="api",
-    )
-    db.add(job)
+        if not request.force_reanalyze:
+            existing = db.query(AISite).filter(AISite.url == url).first()
+            # rule로 분석된 사이트는 LLM으로 재분석이 필요하므로 캐시 히트로 보지 않는다
+            if existing and existing.analyzer != "rule":
+                job = (
+                    db.query(AnalysisJob)
+                    .filter(
+                        AnalysisJob.site_id == existing.site_id,
+                        AnalysisJob.status == JobStatus.SUCCESS,
+                    )
+                    .order_by(AnalysisJob.completed_at.desc())
+                    .first()
+                )
+                if job:
+                    responses.append(AnalysisJobResponse(
+                        job_id=job.job_id,
+                        url=job.url,
+                        status=job.status,
+                        created_at=job.created_at,
+                        started_at=job.started_at,
+                        completed_at=job.completed_at,
+                        retry_count=job.retry_count,
+                        error_message=job.error_message,
+                    ))
+                    continue
+
+        job = AnalysisJob(
+            job_id=uuid4(),
+            url=url,
+            status=JobStatus.PENDING,
+            retry_count=0,
+            request_source="api",
+        )
+        db.add(job)
+        db.flush()
+        analyze_website.delay(str(job.job_id), url)
+
+        responses.append(AnalysisJobResponse(
+            job_id=job.job_id,
+            url=job.url,
+            status=job.status,
+            created_at=job.created_at,
+            started_at=job.started_at,
+            completed_at=job.completed_at,
+            retry_count=job.retry_count,
+            error_message=job.error_message,
+        ))
+
     db.commit()
-    db.refresh(job)
-
-    analyze_website.delay(str(job.job_id), url)
-
-    return AnalysisJobResponse(
-        job_id=job.job_id,
-        url=job.url,
-        status=job.status,
-        created_at=job.created_at,
-        started_at=job.started_at,
-        completed_at=job.completed_at,
-        retry_count=job.retry_count,
-        error_message=job.error_message,
-    )
+    return responses
 
 
 @router.post("/batch/upload", status_code=202, response_model=BatchAnalysisResponse)

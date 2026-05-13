@@ -22,7 +22,7 @@ class TestAnalysisPerformance:
         start = time.time()
         response = test_client.post(
             "/api/v1/analyze",
-            json={"url": url, "force_reanalyze": False},
+            json={"urls": [url], "force_reanalyze": False},
             headers={"x-api-key": valid_api_key},
         )
         elapsed = time.time() - start
@@ -90,7 +90,7 @@ class TestConcurrentAnalysis:
         for url in urls:
             response = test_client.post(
                 "/api/v1/analyze",
-                json={"url": url, "force_reanalyze": False},
+                json={"urls": [url], "force_reanalyze": False},
                 headers={"x-api-key": valid_api_key},
             )
             responses.append(response)
@@ -104,7 +104,7 @@ class TestConcurrentAnalysis:
         assert elapsed < 3.0, f"다중 요청 처리 시간: {elapsed:.2f}초"
         
         # 응답 Job ID 모두 다름
-        job_ids = [r.json()["job_id"] for r in responses]
+        job_ids = [r.json()[0]["job_id"] for r in responses]
         assert len(job_ids) == len(set(job_ids)), "Job ID 중복 발생"
 
     def test_api_throughput(self, test_client, valid_api_key):
@@ -116,7 +116,7 @@ class TestConcurrentAnalysis:
         for i in range(requests_count):
             response = test_client.post(
                 "/api/v1/analyze",
-                json={"url": f"https://example{i}.com", "force_reanalyze": False},
+                json={"urls": [f"https://example{i}.com"], "force_reanalyze": False},
                 headers={"x-api-key": valid_api_key},
             )
             assert response.status_code == 202

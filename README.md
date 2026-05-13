@@ -105,15 +105,15 @@ docker-compose down
 
 ## API 사용 예시
 
-### 비동기 단일 분석 요청
+### 비동기 분석 요청 (단건·다건)
 ```bash
 curl -X POST http://localhost:8000/api/v1/analyze \
   -H "Content-Type: application/json" \
   -H "x-api-key: your-api-key" \
-  -d '{"url": "https://example.com", "force_reanalyze": false}'
+  -d '{"urls": ["https://example.com", "https://example2.com"]}'
 ```
 
-응답: `{"job_id": "uuid", "status": "pending", ...}`
+응답: `[{"job_id": "uuid", "status": "pending", ...}, ...]`
 
 ### 비동기 일괄 분석 — 파일 업로드
 ```bash

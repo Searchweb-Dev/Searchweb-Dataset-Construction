@@ -13,9 +13,11 @@ Spring Backend와 통신하는 AI 사이트 분석 Worker의 REST API.
 
 ---
 
-## 1. 비동기 단일 분석 요청
+## 1. 비동기 분석 요청 (단건·다건)
 
-URL을 전송하여 비동기 분석 작업을 시작합니다.
+URL 목록을 전송하여 비동기 분석 작업을 시작합니다. 단건(1개)과 다건(최대 100개) 모두 지원합니다.
+
+LLM으로 이미 분석된 URL은 기존 job을 즉시 반환합니다. `rule`로 분류된 URL은 LLM으로 재분석합니다.
 
 ### Endpoint
 ```
@@ -33,14 +35,17 @@ Content-Type: application/json
 **Body:**
 ```json
 {
-  "url": "https://www.example-ai-tool.com",
+  "urls": [
+    "https://www.example-ai-tool.com",
+    "https://www.another-tool.com"
+  ],
   "force_reanalyze": false
 }
 ```
 
 | 필드 | 타입 | 필수 | 설명 |
 |------|------|------|------|
-| `url` | string | ✓ | 분석할 웹사이트 URL |
+| `urls` | array | ✓ | 분석할 웹사이트 URL 목록 (1~100개) |
 | `force_reanalyze` | boolean | - | 기존 결과 무시하고 재분석 (기본: false) |
 
 ### Response
@@ -48,17 +53,21 @@ Content-Type: application/json
 **Status: 202 Accepted**
 
 ```json
-{
-  "job_id": "550e8400-e29b-41d4-a716-446655440000",
-  "url": "https://www.example-ai-tool.com",
-  "status": "pending",
-  "created_at": "2026-05-04T10:30:00Z",
-  "started_at": null,
-  "completed_at": null,
-  "retry_count": 0,
-  "error_message": null
-}
+[
+  {
+    "job_id": "550e8400-e29b-41d4-a716-446655440000",
+    "url": "https://www.example-ai-tool.com",
+    "status": "pending",
+    "created_at": "2026-05-04T10:30:00Z",
+    "started_at": null,
+    "completed_at": null,
+    "retry_count": 0,
+    "error_message": null
+  }
+]
 ```
+
+URL별로 job 객체가 담긴 배열을 반환합니다.
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
@@ -73,17 +82,10 @@ Content-Type: application/json
 
 ### Errors
 
-**Status: 400 Bad Request**
+**Status: 422 Unprocessable Entity**
 ```json
 {
-  "detail": "Invalid URL format"
-}
-```
-
-**Status: 429 Too Many Requests**
-```json
-{
-  "detail": "Rate limit exceeded. Try again after 60 seconds."
+  "detail": "URL 형식 오류 또는 urls 필드 누락"
 }
 ```
 

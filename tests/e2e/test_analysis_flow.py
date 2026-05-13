@@ -32,7 +32,7 @@ class TestAnalysisAPI:
         """분석 요청 - 잘못된 API 키."""
         response = test_client.post(
             "/api/v1/analyze",
-            json={"url": "https://example.com", "force_reanalyze": False},
+            json={"urls": ["https://example.com"], "force_reanalyze": False},
             headers={"x-api-key": "wrong-key"},
         )
 
@@ -43,7 +43,7 @@ class TestAnalysisAPI:
         """분석 요청 - API 키 누락."""
         response = test_client.post(
             "/api/v1/analyze",
-            json={"url": "https://example.com", "force_reanalyze": False},
+            json={"urls": ["https://example.com"], "force_reanalyze": False},
         )
 
         assert response.status_code == 422
@@ -52,7 +52,7 @@ class TestAnalysisAPI:
         """분석 요청 - 잘못된 URL 형식."""
         response = test_client.post(
             "/api/v1/analyze",
-            json={"url": "not-a-url", "force_reanalyze": False},
+            json={"urls": ["not-a-url"], "force_reanalyze": False},
             headers={"x-api-key": valid_api_key},
         )
 
@@ -62,17 +62,19 @@ class TestAnalysisAPI:
         """분석 요청 - 성공."""
         response = test_client.post(
             "/api/v1/analyze",
-            json={"url": "https://example.com", "force_reanalyze": False},
+            json={"urls": ["https://example.com"], "force_reanalyze": False},
             headers={"x-api-key": valid_api_key},
         )
 
         assert response.status_code == 202
         data = response.json()
-        assert data["status"] == "pending"
-        assert "job_id" in data
-        assert data["url"].startswith("https://example.com")
-        assert data["retry_count"] == 0
-        assert data["error_message"] is None
+        assert isinstance(data, list)
+        assert len(data) == 1
+        assert data[0]["status"] == "pending"
+        assert "job_id" in data[0]
+        assert data[0]["url"].startswith("https://example.com")
+        assert data[0]["retry_count"] == 0
+        assert data[0]["error_message"] is None
 
     def test_job_status_invalid_api_key(self, test_client):
         """작업 상태 조회 - 잘못된 API 키."""
@@ -108,13 +110,14 @@ class TestAnalysisAPI:
         """분석 요청 - 강제 재분석."""
         response = test_client.post(
             "/api/v1/analyze",
-            json={"url": "https://example.com", "force_reanalyze": True},
+            json={"urls": ["https://example.com"], "force_reanalyze": True},
             headers={"x-api-key": valid_api_key},
         )
 
         assert response.status_code == 202
         data = response.json()
-        assert data["status"] == "pending"
+        assert isinstance(data, list)
+        assert data[0]["status"] == "pending"
 
 
 class TestHealthCheck:

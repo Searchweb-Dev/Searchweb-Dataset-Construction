@@ -9,9 +9,9 @@ from .site import AISiteResponse
 
 
 class AnalysisJobRequest(BaseModel):
-    """분석 요청 스키마."""
+    """분석 요청 스키마. 단건 또는 다건 URL을 모두 지원한다."""
 
-    url: HttpUrl
+    urls: list[HttpUrl] = Field(min_length=1, max_length=100, description="분석할 URL 목록 (최대 100개)")
     force_reanalyze: bool = False
 
 
