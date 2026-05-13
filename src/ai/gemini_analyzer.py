@@ -55,9 +55,9 @@ _BATCH_SCHEMA = {
 
 
 def _is_retryable(exc: BaseException) -> bool:
-    """503 / 429 계열 오류인지 판별한다."""
+    """429 계열 오류인지 판별한다. 503은 재시도하지 않는다."""
     msg = str(exc)
-    return "503" in msg or "429" in msg or "UNAVAILABLE" in msg or "RESOURCE_EXHAUSTED" in msg
+    return "429" in msg or "RESOURCE_EXHAUSTED" in msg
 
 
 class GeminiAnalyzer:
