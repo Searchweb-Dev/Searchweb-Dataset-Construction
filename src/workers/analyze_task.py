@@ -40,6 +40,108 @@ def _is_failed_analysis(site: AISite) -> bool:
 
 
 # 전역 task_autoretry_for 미설정 — 재시도는 각 태스크가 명시적으로 관리한다.
+@app.task(bind=True, max_retries=3, autoretry_for=(), time_limit=600, soft_time_limit=540)
+def analyze_website_batch(self, job_ids: list[str], urls: list[str]) -> dict[str, Any]:
+    """URL 목록을 LLM 1회 호출로 배치 분석한다.
+
+    Args:
+        job_ids: 분석 작업 ID 목록 (urls와 동일 순서).
+        urls: 분석 대상 URL 목록 (최대 5개).
+
+    Returns:
+        성공/실패 건수 요약 딕셔너리.
+    """
+    from src.ai.gemini_analyzer import GeminiAnalyzer
+    from src.ai.analyzer import get_llm_analyzer
+
+    db = SessionLocal()
+    now = utc_now()
+
+    try:
+        # Job 상태를 PROCESSING으로 일괄 업데이트
+        jobs = {
+            str(job.job_id): job
+            for job in db.query(AnalysisJob).filter(
+                AnalysisJob.job_id.in_(job_ids)
+            ).all()
+        }
+        for job in jobs.values():
+            job.status = JobStatus.PROCESSING
+            job.started_at = now
+        db.commit()
+
+        analyzer = get_llm_analyzer()
+
+        # 배치 분석 지원 여부에 따라 분기
+        if hasattr(analyzer, "analyze_websites_batch"):
+            results = analyzer.analyze_websites_batch(urls)
+        else:
+            results = [analyzer.analyze_website(url) for url in urls]
+
+        success, failed = 0, 0
+        detector = AIDetector(db, analyzer=analyzer)
+
+        for job_id_str, url, analysis in zip(job_ids, urls, results):
+            job = jobs.get(job_id_str)
+            if not job:
+                logger.error(f"Job을 찾을 수 없음: {job_id_str}")
+                failed += 1
+                continue
+            try:
+                if not detector._validate_analysis(analysis):
+                    raise AnalysisError(f"분석 결과 검증 실패: {url}")
+
+                ai_site = detector._save_site(url=url, analysis=analysis)
+                if ai_site:
+                    detector._save_categories_and_tags(
+                        ai_site.site_id,
+                        analysis.get("categories", []),
+                        analysis.get("tags", []),
+                    )
+                db.commit()
+
+                job.status = JobStatus.SUCCESS
+                job.completed_at = utc_now()
+                job.site_id = ai_site.site_id if ai_site else None
+                db.commit()
+                success += 1
+                logger.info(f"배치 분석 완료: {job_id_str} -> {url}")
+            except Exception as e:
+                logger.error(f"배치 항목 저장 실패: {url} ({e})")
+                db.rollback()
+                job = db.query(AnalysisJob).filter(AnalysisJob.job_id == job_id_str).first()
+                if job:
+                    job.status = JobStatus.FAILED
+                    job.error_message = str(e)
+                    job.completed_at = utc_now()
+                    db.commit()
+                failed += 1
+
+        return {"success": success, "failed": failed, "total": len(urls)}
+
+    except Exception as e:
+        logger.error(f"배치 분석 작업 실패: {e}")
+        db.rollback()
+
+        # 전체 job을 FAILED 처리
+        for job_id_str in job_ids:
+            job = db.query(AnalysisJob).filter(AnalysisJob.job_id == job_id_str).first()
+            if job:
+                job.status = JobStatus.FAILED
+                job.error_message = str(e)
+                job.completed_at = utc_now()
+                job.retry_count = self.request.retries
+        db.commit()
+
+        if self.request.retries < self.max_retries:
+            raise self.retry(exc=Exception(str(e)), countdown=60 * (self.request.retries + 1))
+
+        return {"success": 0, "failed": len(urls), "total": len(urls)}
+
+    finally:
+        db.close()
+
+
 @app.task(bind=True, max_retries=3, autoretry_for=(), time_limit=300, soft_time_limit=240)
 def analyze_website(self, job_id: str, url: str) -> dict[str, Any]:
     """

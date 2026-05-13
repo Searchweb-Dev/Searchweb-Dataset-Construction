@@ -1,93 +1,107 @@
-"""Claude API 클라이언트 테스트."""
+"""GeminiAnalyzer 단위 테스트."""
 
 import json
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, MagicMock
 import pytest
 
-from src.ai.analyzer import WebAnalyzer
+from src.ai.gemini_analyzer import GeminiAnalyzer
 
 
-def test_analyzer_initialization():
-    """분석기 초기화 테스트."""
-    analyzer = WebAnalyzer()
-    assert analyzer.model == "claude-sonnet-4-6"
+@pytest.fixture
+def analyzer():
+    """GeminiAnalyzer 인스턴스 (API 호출 없이 생성)."""
+    with patch("src.ai.gemini_analyzer.genai.Client"):
+        return GeminiAnalyzer(api_key="test-key")
+
+
+def test_analyzer_initialization(analyzer):
+    """분석기 초기화 확인."""
+    assert analyzer.model is not None
     assert analyzer.client is not None
 
 
-def test_parse_response_valid_json():
-    """응답 파싱 - 유효한 JSON."""
-    analyzer = WebAnalyzer()
-    
-    response_text = """
-    분석 결과입니다:
-    {
-        "is_ai_tool": true,
+def test_parse_single_valid_json(analyzer):
+    """단건 응답 파싱 — 정상 JSON."""
+    mock_response = Mock()
+    mock_response.text = json.dumps({
+        "is_ai_tool": True,
         "title": "Test AI",
         "description": "테스트 AI 도구",
-        "categories": [{"level_1": "AI", "level_2": "Chat", "level_3": "LLM", "is_primary": true}],
+        "categories": [{"level_1": "text", "level_2": "text-generation", "is_primary": True}],
         "tags": ["chatbot", "nlp"],
         "scores": {"utility": 8, "trust": 9, "originality": 7},
-        "confidence": 0.95
-    }
-    """
-    
-    result = analyzer._parse_response(response_text)
-    
+        "confidence": 0.95,
+    })
+
+    result = analyzer._parse_single(mock_response)
+
     assert result["is_ai_tool"] is True
     assert result["title"] == "Test AI"
     assert result["confidence"] == 0.95
 
 
-def test_parse_response_invalid_json():
-    """응답 파싱 - 잘못된 JSON."""
-    analyzer = WebAnalyzer()
-    
-    response_text = "응답에 JSON이 없습니다."
-    result = analyzer._parse_response(response_text)
-    
+def test_parse_single_invalid_json(analyzer):
+    """단건 응답 파싱 — 파싱 실패 시 기본값 반환."""
+    mock_response = Mock()
+    mock_response.text = "응답에 JSON이 없습니다."
+
+    result = analyzer._parse_single(mock_response)
+
     assert result["is_ai_tool"] is False
     assert result["title"] == "Unknown"
+    assert result["confidence"] == 0
 
 
-def test_analysis_prompt_generation():
-    """분석 프롬프트 생성 테스트."""
-    analyzer = WebAnalyzer()
-    
-    url = "https://example.com"
-    content = "Test content"
-    
-    prompt = analyzer._build_analysis_prompt(url, content)
-    
-    assert url in prompt
-    assert "AI 도구" in prompt
-    assert "JSON" in prompt
-
-
-@patch("src.ai.analyzer.Anthropic")
-def test_analyze_website_success(mock_anthropic):
-    """웹사이트 분석 - 성공 케이스."""
+def test_parse_batch_valid(analyzer):
+    """배치 응답 파싱 — 정상 배열."""
+    items = [
+        {"is_ai_tool": True, "title": "AI1", "description": "d1",
+         "categories": [], "tags": [], "scores": {"utility": 5, "trust": 5, "originality": 5}, "confidence": 0.9},
+        {"is_ai_tool": False, "title": "Not AI", "description": "d2",
+         "categories": [], "tags": [], "scores": {"utility": 3, "trust": 3, "originality": 3}, "confidence": 0.1},
+    ]
     mock_response = Mock()
-    mock_response.content = [Mock()]
-    mock_response.content[0].text = json.dumps({
-        "is_ai_tool": True,
-        "title": "Claude",
-        "description": "AI Assistant",
-        "categories": [],
-        "tags": ["ai", "chat"],
-        "scores": {"utility": 9, "trust": 9, "originality": 8},
-        "confidence": 0.98
-    })
-    
-    mock_client = Mock()
-    mock_client.messages.create.return_value = mock_response
-    mock_anthropic.return_value = mock_client
-    
-    analyzer = WebAnalyzer()
-    result = analyzer.analyze_website(
-        url="https://claude.ai",
-        page_content="Claude is an AI assistant..."
-    )
-    
-    assert result["is_ai_tool"] is True
-    assert result["title"] == "Claude"
-    assert result["confidence"] == 0.98
+    mock_response.text = json.dumps(items)
+
+    results = analyzer._parse_batch(mock_response, ["https://a.com", "https://b.com"])
+
+    assert len(results) == 2
+    assert results[0]["is_ai_tool"] is True
+    assert results[1]["is_ai_tool"] is False
+    assert all(r["analyzer"] == "gemini" for r in results)
+
+
+def test_parse_batch_length_mismatch(analyzer):
+    """배치 응답 길이 불일치 — 기본값으로 패딩."""
+    mock_response = Mock()
+    mock_response.text = json.dumps([
+        {"is_ai_tool": True, "title": "Only One", "description": "d",
+         "categories": [], "tags": [], "scores": {"utility": 5, "trust": 5, "originality": 5}, "confidence": 0.9},
+    ])
+
+    results = analyzer._parse_batch(mock_response, ["https://a.com", "https://b.com", "https://c.com"])
+
+    assert len(results) == 3
+    assert results[0]["title"] == "Only One"
+    assert results[1]["title"] == "Unknown"
+    assert results[2]["title"] == "Unknown"
+
+
+def test_parse_batch_invalid_json(analyzer):
+    """배치 응답 파싱 실패 — 전체 기본값 반환."""
+    mock_response = Mock()
+    mock_response.text = "invalid json"
+
+    results = analyzer._parse_batch(mock_response, ["https://a.com", "https://b.com"])
+
+    assert len(results) == 2
+    assert all(r["title"] == "Unknown" for r in results)
+
+
+def test_default_response(analyzer):
+    """기본 응답 구조 확인."""
+    result = analyzer._default_response()
+
+    assert result["is_ai_tool"] is False
+    assert result["confidence"] == 0
+    assert "scores" in result

@@ -18,7 +18,7 @@ from src.schemas import (
     BatchAnalysisResponse,
     BatchFilePathRequest,
 )
-from src.workers.analyze_task import analyze_ai_tools_batch, analyze_website
+from src.workers.analyze_task import analyze_ai_tools_batch, analyze_website_batch
 
 logger = logging.getLogger(__name__)
 
@@ -31,34 +31,36 @@ def analyze(
     api_key: str = Depends(verify_api_key),
     db: Session = Depends(get_db),
 ):
-    """URL 목록을 비동기로 분석하는 작업을 생성한다 (단건·다건 모두 지원).
+    """URL 목록을 비동기로 LLM 분석한다 (최대 5개).
 
-    이미 LLM으로 분석된 URL은 기존 성공 job을 즉시 반환한다.
-    rule로 분석된 URL은 LLM으로 재분석한다.
+    LLM으로 이미 분석된 URL은 캐시 결과를 즉시 반환한다.
+    rule 분석 URL 또는 미분석 URL은 LLM 배치 분석 대상이 된다.
+    LLM 대상 URL 전체를 단일 Celery task로 묶어 LLM 호출을 최소화한다.
     force_reanalyze=true이면 모든 URL을 새로 분석한다.
     작업 결과는 GET /jobs/{job_id}로 폴링해 확인한다.
 
     Args:
-        request: 분석할 URL 목록(최대 100개)과 재분석 강제 여부.
+        request: 분류할 URL 목록(최대 5개)과 재분류 강제 여부.
         api_key: API 키 검증 의존성.
         db: DB 세션 의존성.
 
     Returns:
-        URL별 분석 작업 정보 리스트.
+        URL별 분류 작업 정보 리스트.
 
     Raises:
         HTTPException 422: URL 형식 오류.
     """
     responses: list[AnalysisJobResponse] = []
-    pending_tasks: list[tuple[str, str]] = []
+    pending_job_ids: list[str] = []
+    pending_urls: list[str] = []
 
     for raw_url in request.urls:
         url = normalize_url(str(raw_url))
 
         if not request.force_reanalyze:
             existing = db.query(AISite).filter(AISite.url == url).first()
-            # rule로 분석된 사이트는 LLM으로 재분석이 필요하므로 캐시 히트로 보지 않는다
-            if existing and existing.analyzer != "rule":
+            # LLM으로 분석된 URL만 캐시 히트 — rule 분류 결과는 LLM으로 재분류
+            if existing and existing.analyzer not in (None, "rule"):
                 job = (
                     db.query(AnalysisJob)
                     .filter(
@@ -100,13 +102,14 @@ def analyze(
             retry_count=job.retry_count,
             error_message=job.error_message,
         ))
-        pending_tasks.append((str(job.job_id), url))
+        pending_job_ids.append(str(job.job_id))
+        pending_urls.append(url)
 
     db.commit()
 
-    # commit 완료 후 Celery task 디스패치 — worker가 DB에서 job을 찾을 수 있다
-    for job_id_str, task_url in pending_tasks:
-        analyze_website.delay(job_id_str, task_url)
+    # LLM 분류 대상 URL 전체를 단일 task로 묶어 디스패치 — LLM 호출 최소화
+    if pending_urls:
+        analyze_website_batch.delay(pending_job_ids, pending_urls)
 
     return responses
 
@@ -117,7 +120,7 @@ async def analyze_batch_upload(
     force_reanalyze: bool = Form(False),
     api_key: str = Depends(verify_api_key),
 ):
-    """업로드된 파일에서 URL을 추출해 일괄 비동기 분석한다.
+    """업로드된 파일에서 URL을 추출해 일괄 비동기 분류한다.
 
     JSON 파일: 문자열 배열 ["url1", ...] 또는 객체 배열 [{"link": "url1"}, ...] 지원.
     텍스트 파일: 한 줄에 URL 하나.
@@ -125,7 +128,7 @@ async def analyze_batch_upload(
 
     Args:
         file: 업로드할 URL 목록 파일.
-        force_reanalyze: 기존 분석 결과 무시 여부.
+        force_reanalyze: 기존 分류 결과 무시 여부.
         api_key: API 키 검증 의존성.
 
     Returns:
@@ -146,7 +149,7 @@ async def analyze_batch_upload(
     return BatchAnalysisResponse(
         total=len(urls),
         accepted=len(urls),
-        message=f"{len(urls)}건 분석을 백그라운드에서 시작했습니다. 완료 후 data/ 디렉토리에 결과 파일이 생성됩니다.",
+        message=f"{len(urls)}건 분류을 백그라운드에서 시작했습니다. 완료 후 data/ 디렉토리에 결과 파일이 생성됩니다.",
     )
 
 
@@ -155,14 +158,14 @@ def analyze_batch_file(
     request: BatchFilePathRequest,
     api_key: str = Depends(verify_api_key),
 ):
-    """서버 경로의 파일에서 URL을 추출해 일괄 비동기 분석한다.
+    """서버 경로의 파일에서 URL을 추출해 일괄 비동기 분류한다.
 
     JSON 파일: 문자열 배열 ["url1", ...] 또는 객체 배열 [{"link": "url1"}, ...] 지원.
     텍스트 파일: 한 줄에 URL 하나.
     최대 500개까지 처리하며 초과분은 잘라냅니다.
 
     Args:
-        request: 서버 내 파일 경로와 재분석 강제 여부.
+        request: 서버 내 파일 경로와 재분류 강제 여부.
         api_key: API 키 검증 의존성.
 
     Returns:
@@ -185,5 +188,5 @@ def analyze_batch_file(
     return BatchAnalysisResponse(
         total=len(urls),
         accepted=len(urls),
-        message=f"{len(urls)}건 분석을 백그라운드에서 시작했습니다. 완료 후 data/ 디렉토리에 결과 파일이 생성됩니다.",
+        message=f"{len(urls)}건 분류을 백그라운드에서 시작했습니다. 완료 후 data/ 디렉토리에 결과 파일이 생성됩니다.",
     )

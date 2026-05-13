@@ -1,10 +1,15 @@
 """테스트 설정."""
 
+import os
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
+
+# 테스트 환경 변수 — 실제 외부 API 호출 없이 인증만 통과
+os.environ.setdefault("API_KEY", "test-api-key-change-in-production")
+os.environ.setdefault("GEMINI_API_KEY", "test-gemini-key")
 
 from src.db.models.base import Base
 from src.db.session import get_db
