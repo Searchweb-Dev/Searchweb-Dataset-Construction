@@ -50,6 +50,7 @@ def analyze(
         HTTPException 422: URL 형식 오류.
     """
     responses: list[AnalysisJobResponse] = []
+    pending_tasks: list[tuple[str, str]] = []
 
     for raw_url in request.urls:
         url = normalize_url(str(raw_url))
@@ -89,8 +90,6 @@ def analyze(
         )
         db.add(job)
         db.flush()
-        analyze_website.delay(str(job.job_id), url)
-
         responses.append(AnalysisJobResponse(
             job_id=job.job_id,
             url=job.url,
@@ -101,8 +100,14 @@ def analyze(
             retry_count=job.retry_count,
             error_message=job.error_message,
         ))
+        pending_tasks.append((str(job.job_id), url))
 
     db.commit()
+
+    # commit 완료 후 Celery task 디스패치 — worker가 DB에서 job을 찾을 수 있다
+    for job_id_str, task_url in pending_tasks:
+        analyze_website.delay(job_id_str, task_url)
+
     return responses
 
 
