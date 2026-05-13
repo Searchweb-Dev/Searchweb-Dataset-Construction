@@ -12,4 +12,4 @@ COPY src/ src/
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Celery Worker 실행
-CMD ["celery", "-A", "src.workers.celery_app", "worker", "--loglevel=info"]
+CMD ["celery", "-A", "src.workers.celery_app", "worker", "--loglevel=info", "-Q", "analyze", "--events"]
