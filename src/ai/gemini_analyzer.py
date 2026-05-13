@@ -126,7 +126,7 @@ class GeminiAnalyzer:
     @retry(
         retry=retry_if_exception(_is_retryable),
         wait=wait_exponential(multiplier=1, min=2, max=30),
-        stop=stop_after_attempt(4),
+        stop=stop_after_attempt(2),
         reraise=True,
     )
     def _generate_single(self, url: str) -> Any:
@@ -145,7 +145,7 @@ class GeminiAnalyzer:
     @retry(
         retry=retry_if_exception(_is_retryable),
         wait=wait_exponential(multiplier=1, min=2, max=30),
-        stop=stop_after_attempt(4),
+        stop=stop_after_attempt(2),
         reraise=True,
     )
     def _generate_batch(self, prompt: str) -> Any:

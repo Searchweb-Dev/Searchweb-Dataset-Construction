@@ -1,11 +1,14 @@
 """애플리케이션 설정."""
 
+import logging
 import os
 from functools import lru_cache
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+_logger = logging.getLogger(__name__)
 
 
 @lru_cache
@@ -37,23 +40,27 @@ def get_allowed_origins() -> list[str]:
 
 
 def get_llm_provider() -> str:
-    """LLM 프로바이더 반환. gemini | claude"""
-    return os.getenv("LLM_PROVIDER", "gemini")
+    """LLM 프로바이더 반환. 환경변수 미설정 시 RuntimeError 발생."""
+    provider = os.getenv("LLM_PROVIDER")
+    if not provider:
+        raise RuntimeError("LLM_PROVIDER 환경변수가 설정되지 않았습니다.")
+    return provider
 
 
 def get_gemini_api_key() -> str:
-    """Gemini API 키 반환."""
-    return os.getenv("GEMINI_API_KEY", "")
+    """Gemini API 키 반환. 환경변수 미설정 시 RuntimeError 발생."""
+    key = os.getenv("GEMINI_API_KEY")
+    if not key:
+        raise RuntimeError("GEMINI_API_KEY 환경변수가 설정되지 않았습니다.")
+    return key
 
 
 def get_gemini_model() -> str:
-    """Gemini 모델명 반환."""
-    return os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
-
-
-def get_claude_api_key() -> str:
-    """Claude API 키 반환."""
-    return os.getenv("ANTHROPIC_API_KEY", "")
+    """Gemini 모델명 반환. 환경변수 미설정 시 RuntimeError 발생."""
+    model = os.getenv("GEMINI_MODEL")
+    if not model:
+        raise RuntimeError("GEMINI_MODEL 환경변수가 설정되지 않았습니다.")
+    return model
 
 
 def get_classifier_mode() -> str:
@@ -61,13 +68,7 @@ def get_classifier_mode() -> str:
 
     유효값: "llm" | "rule". 기본값은 "llm".
     유효하지 않은 값이면 경고 로그를 출력하고 "llm"으로 폴백한다.
-
-    Returns:
-        "llm" 또는 "rule" 문자열.
     """
-    import logging
-    _logger = logging.getLogger(__name__)
-
     raw = os.getenv("CLASSIFIER_MODE", "llm")
     normalized = raw.strip().lower()
     if normalized in ("llm", "rule"):

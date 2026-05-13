@@ -197,7 +197,7 @@ uv run celery -A src.workers.celery_app events
 | 데이터베이스 | PostgreSQL | 14+ |
 | 캐시/큐 | Redis | 7+ |
 | 비동기 작업 | Celery | 5.6+ |
-| AI API (기본) | Gemini | gemini-2.5-flash-lite |
+| AI API (기본) | Gemini | gemini-3.1-flash-lite |
 | AI API (선택) | Claude | claude-sonnet-4-6 |
 
 ---

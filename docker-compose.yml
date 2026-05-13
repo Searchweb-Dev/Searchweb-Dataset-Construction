@@ -34,10 +34,9 @@ services:
     environment:
       DATABASE_URL: postgresql://ai_detector:${POSTGRES_PASSWORD}@postgres:5432/ai_detector
       REDIS_URL: redis://redis:6379/0
-      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash-lite}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      LLM_PROVIDER: ${LLM_PROVIDER}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL: ${GEMINI_MODEL}
       API_KEY: ${API_KEY}
       ENV: production
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
@@ -59,10 +58,9 @@ services:
     environment:
       DATABASE_URL: postgresql://ai_detector:${POSTGRES_PASSWORD}@postgres:5432/ai_detector
       REDIS_URL: redis://redis:6379/0
-      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash-lite}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      LLM_PROVIDER: ${LLM_PROVIDER}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL: ${GEMINI_MODEL}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     depends_on:
       postgres:

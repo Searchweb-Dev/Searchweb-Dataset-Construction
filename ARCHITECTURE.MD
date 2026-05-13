@@ -510,23 +510,6 @@ Gemini 응답을 Pydantic으로 검증한다.
 
 ---
 
-# MVP Scope
-
-초기 MVP 목표:
-
-입력:
-- URL 1개
-
-출력:
-- AI 사이트 여부
-- 카테고리
-- usefulness score
-- summary
-
-복잡한 랭킹/추천 시스템은 MVP 범위에서 제외한다.
-
----
-
 # Result Storage Strategy
 
 ## 선택: Worker Direct DB Save

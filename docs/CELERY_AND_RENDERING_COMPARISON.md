@@ -240,7 +240,7 @@ async def analyze_with_mcp(url: str) -> dict:
     client = genai.Client(api_key=GEMINI_API_KEY)
 
     response = client.models.generate_content(
-        model="gemini-2.5-flash-lite",
+        model="gemini-3.1-flash-lite",
         contents=f"""
         다음 URL을 분석해줘: {url}
 
@@ -377,7 +377,7 @@ async def analyze(url: str):
     client = genai.Client(api_key=GEMINI_API_KEY)
 
     response = client.models.generate_content(
-        model="gemini-2.5-flash-lite",
+        model="gemini-3.1-flash-lite",
         contents=f"Analyze {url} as AI service",
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
