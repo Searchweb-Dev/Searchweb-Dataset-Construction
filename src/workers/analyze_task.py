@@ -54,6 +54,11 @@ def analyze_website_batch(self, job_ids: list[str], urls: list[str]) -> dict[str
     from src.ai.gemini_analyzer import GeminiAnalyzer
     from src.ai.analyzer import get_llm_analyzer
 
+    logger.info(
+        "배치 분석 task 시작: %d개 URL %s",
+        len(urls),
+        urls,
+    )
     db = SessionLocal()
     now = utc_now()
 
@@ -69,14 +74,20 @@ def analyze_website_batch(self, job_ids: list[str], urls: list[str]) -> dict[str
             job.status = JobStatus.PROCESSING
             job.started_at = now
         db.commit()
+        logger.info("Job 상태 PROCESSING 업데이트 완료: %d건", len(jobs))
 
         analyzer = get_llm_analyzer()
+        analyzer_name = type(analyzer).__name__
 
         # 배치 분석 지원 여부에 따라 분기
         if hasattr(analyzer, "analyze_websites_batch"):
+            logger.info("[%s] 배치 LLM 호출 시작 (URL %d개 → 호출 1회)", analyzer_name, len(urls))
             results = analyzer.analyze_websites_batch(urls)
+            logger.info("[%s] 배치 LLM 호출 완료", analyzer_name)
         else:
+            logger.info("[%s] 개별 LLM 호출 시작 (URL %d개)", analyzer_name, len(urls))
             results = [analyzer.analyze_website(url) for url in urls]
+            logger.info("[%s] 개별 LLM 호출 완료", analyzer_name)
 
         success, failed = 0, 0
         detector = AIDetector(db, analyzer=analyzer)
@@ -84,12 +95,12 @@ def analyze_website_batch(self, job_ids: list[str], urls: list[str]) -> dict[str
         for job_id_str, url, analysis in zip(job_ids, urls, results):
             job = jobs.get(job_id_str)
             if not job:
-                logger.error(f"Job을 찾을 수 없음: {job_id_str}")
+                logger.error("Job을 찾을 수 없음: %s", job_id_str)
                 failed += 1
                 continue
             try:
                 if not detector._validate_analysis(analysis):
-                    raise AnalysisError(f"분석 결과 검증 실패: {url}")
+                    raise AnalysisError(f"분析 결과 검증 실패: {url}")
 
                 ai_site = detector._save_site(url=url, analysis=analysis)
                 if ai_site:
@@ -105,9 +116,15 @@ def analyze_website_batch(self, job_ids: list[str], urls: list[str]) -> dict[str
                 job.site_id = ai_site.site_id if ai_site else None
                 db.commit()
                 success += 1
-                logger.info(f"배치 분석 완료: {job_id_str} -> {url}")
+                logger.info(
+                    "항목 분析 완료: %s | is_ai_tool=%s confidence=%.2f title=%r",
+                    url,
+                    analysis.get("is_ai_tool"),
+                    analysis.get("confidence", 0),
+                    analysis.get("title", ""),
+                )
             except Exception as e:
-                logger.error(f"배치 항목 저장 실패: {url} ({e})")
+                logger.error("항목 저장 실패: %s (%s)", url, e)
                 db.rollback()
                 job = db.query(AnalysisJob).filter(AnalysisJob.job_id == job_id_str).first()
                 if job:
@@ -117,6 +134,10 @@ def analyze_website_batch(self, job_ids: list[str], urls: list[str]) -> dict[str
                     db.commit()
                 failed += 1
 
+        logger.info(
+            "배치 분析 task 완료: 성공=%d 실패=%d 전체=%d",
+            success, failed, len(urls),
+        )
         return {"success": success, "failed": failed, "total": len(urls)}
 
     except Exception as e:
