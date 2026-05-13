@@ -1,5 +1,8 @@
 """FastAPI 메인 앱."""
 
+import logging
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -7,6 +10,11 @@ from src.api import analyze_routes, job_routes, rule_routes
 from src.core.config import get_allowed_origins
 from src.db.models.base import Base
 from src.db.session import engine
+
+logging.basicConfig(
+    level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO),
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 
 app = FastAPI(
     title="AI Site Detection Worker",
