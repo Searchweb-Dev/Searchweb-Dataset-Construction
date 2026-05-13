@@ -100,7 +100,7 @@ def analyze_website_batch(self, job_ids: list[str], urls: list[str]) -> dict[str
                 continue
             try:
                 if not detector._validate_analysis(analysis):
-                    raise AnalysisError(f"분析 결과 검증 실패: {url}")
+                    raise AnalysisError(f"분류 결과 검증 실패: {url}")
 
                 ai_site = detector._save_site(url=url, analysis=analysis)
                 if ai_site:
@@ -117,7 +117,7 @@ def analyze_website_batch(self, job_ids: list[str], urls: list[str]) -> dict[str
                 db.commit()
                 success += 1
                 logger.info(
-                    "항목 분析 완료: %s | is_ai_tool=%s confidence=%.2f title=%r",
+                    "항목 분류 완료: %s | is_ai_tool=%s confidence=%.2f title=%r",
                     url,
                     analysis.get("is_ai_tool"),
                     analysis.get("confidence", 0),
@@ -135,7 +135,7 @@ def analyze_website_batch(self, job_ids: list[str], urls: list[str]) -> dict[str
                 failed += 1
 
         logger.info(
-            "배치 분析 task 완료: 성공=%d 실패=%d 전체=%d",
+            "배치 분류 task 완료: 성공=%d 실패=%d 전체=%d",
             success, failed, len(urls),
         )
         return {"success": success, "failed": failed, "total": len(urls)}
