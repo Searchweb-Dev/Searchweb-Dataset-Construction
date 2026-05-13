@@ -241,7 +241,49 @@ uv run celery -A src.workers.celery_app events
 
 ---
 
-## 구현 현황 (2026-05-12)
+## Phase 8: 규칙기반 분류 API 및 DB 저장 연동 ✓
+
+### 8.1 규칙기반 분류 API 엔드포인트 ✓
+- `POST /api/v1/rule/classify` — 동기 분류 엔드포인트
+- RuleAnalyzer를 통한 URL 분석 및 결과 반환
+
+### 8.2 DB 저장 (AISite/AICategory/AITag) ✓
+- 규칙기반 분석 결과를 DB에 저장
+- analyzer 필드에 "rule" 값 저장
+- 카테고리/태그 자동 생성 및 저장
+
+---
+
+## Phase 9: Celery 작업 아키텍처 문서화 (현재)
+
+### 9.1 Task별 Timeout 및 Retry 정책 정의
+- `analyze_website`: 단건 분석
+  * time_limit: 300s, soft_time_limit: 240s
+  * max_retries: 3, 간격: 60s × N (지수)
+- `analyze_website_batch`: 배치 분석 (1회 LLM 호출)
+  * time_limit: 600s, soft_time_limit: 540s
+  * max_retries: 3, 간격: 60s × N (지수)
+- `analyze_ai_tools_batch`: 병렬 배치 분석 (ThreadPoolExecutor)
+  * time_limit: 3600s (1시간), soft_time_limit: 3300s
+  * max_retries: 0 (수동 재시도만)
+
+### 9.2 Cache 및 분석 모드
+- **Cache 조건**:
+  * DB의 기존 AISite 레코드 확인
+  * is_ai_tool과 title이 sentinel 값이 아닐 때 캐시 히트
+  * analyzer == "rule"일 때는 LLM으로 재분석 (upsert)
+- **분석 모드**:
+  * CLASSIFIER_MODE과 무관하게 analyze_task.py의 analyze_website는 항상 LLM 사용
+  * 규칙기반 분석은 /api/v1/rule/classify 엔드포인트에서만 사용
+
+### 9.3 큐 및 라우팅 설정
+- Queue: `analyze` (Topic exchange)
+- Routing key: `analyze.#`
+- Worker prefetch: 1 (순차 처리)
+- Serializer: JSON
+- Task routes: `src.workers.analyze_task.*` → `analyze.default`
+
+## 구현 현황 (2026-05-14)
 
 ### 완료된 것 ✓
 - Phase 1: DB 모델, 마이그레이션, Pydantic 스키마 ✓
@@ -251,16 +293,20 @@ uv run celery -A src.workers.celery_app events
 - Phase 5: url_context 전환 및 안정화 ✓
 - Phase 6: 코드 품질 개선 및 리팩터링 ✓
 - Phase 7: 규칙기반 URL 분류기 통합 (CLASSIFIER_MODE 환경변수 분기) ✓
+- Phase 8: 규칙기반 분류 API 및 DB 저장 연동 ✓
+- Phase 9: Celery 작업 아키텍처 문서화 ✓
 
 ### 테스트 결과
 - **E2E 테스트**: 9개 모두 통과 ✓
-- **단위 테스트**: 55개 모두 통과 ✓(22 + 33)
+- **단위 테스트**: 55개 모두 통과 ✓ (22 + 33)
 - **성능 테스트**: 8개 모두 통과 ✓
-- **총 테스트**: 62개 통과, 0개 실패 ✓(29 + 33)
+- **총 테스트**: 72개+ 통과 ✓
 
 ### 배포 가능 상태
 - Docker Compose 설정 완료
 - 환경 설정 문서 작성 (DEPLOYMENT.md)
 - Gemini free tier 활용으로 API 비용 절감
+- 규칙기반 분류기 (CLASSIFIER_MODE=rule) 오프라인 분석 가능
 - API 응답 시간 < 1초 검증 ✓
 - 처리량 > 10 req/sec 검증 ✓
+- Celery 작업 타이밍 및 재시도 정책 검증 ✓

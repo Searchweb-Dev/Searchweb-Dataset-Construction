@@ -7,15 +7,15 @@ Spring Backend와 통신하는 AI 사이트 분석 Worker의 REST API.
 ## 기본 정보
 
 - **Base URL**: `http://localhost:8000/api/v1` (로컬) / 배포 환경별
-- **인증**: API Key (header: `X-API-Key`)
+- **인증**: API Key (header: `x-api-key`)
 - **응답 형식**: JSON
-- **타임아웃**: 30초
+- **타임아웃**: 30초 (API), 120초 (분석 작업)
 
 ---
 
 ## 1. 비동기 분석 요청 (단건·다건)
 
-URL 목록을 전송하여 비동기 분석 작업을 시작합니다. 단건(1개)과 다건(최대 100개) 모두 지원합니다.
+URL 목록을 전송하여 비동기 분석 작업을 시작합니다. 단건(1개)과 다건(최대 5개) 모두 지원합니다.
 
 LLM으로 이미 분석된 URL은 기존 job을 즉시 반환합니다. `rule`로 분류된 URL은 LLM으로 재분석합니다.
 
@@ -28,7 +28,7 @@ POST /analyze
 
 **Header:**
 ```
-X-API-Key: {api_key}
+x-api-key: {api_key}
 Content-Type: application/json
 ```
 
@@ -45,7 +45,7 @@ Content-Type: application/json
 
 | 필드 | 타입 | 필수 | 설명 |
 |------|------|------|------|
-| `urls` | array | ✓ | 분석할 웹사이트 URL 목록 (1~100개) |
+| `urls` | array | ✓ | 분석할 웹사이트 URL 목록 (1~5개) |
 | `force_reanalyze` | boolean | - | 기존 결과 무시하고 재분석 (기본: false) |
 
 ### Response
@@ -108,7 +108,7 @@ POST /analyze/batch/upload
 
 **Header:**
 ```
-X-API-Key: {api_key}
+x-api-key: {api_key}
 Content-Type: multipart/form-data
 ```
 
@@ -163,7 +163,7 @@ POST /analyze/batch/file
 
 **Header:**
 ```
-X-API-Key: {api_key}
+x-api-key: {api_key}
 Content-Type: application/json
 ```
 
@@ -223,7 +223,7 @@ POST /rule/classify
 
 **Header:**
 ```
-X-API-Key: {api_key}
+x-api-key: {api_key}
 Content-Type: application/json
 ```
 
@@ -261,18 +261,28 @@ Content-Type: application/json
   },
   "review_required": false,
   "review_reasons": [],
-  "criteria": [
-    {
-      "criterion": "AI Markers",
+  "criteria": {
+    "ai_markers": {
+      "name": "AI Markers",
       "passed": true,
-      "confidence": 0.95
+      "reason": "Found AI-specific indicators in content",
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "url": "https://www.example.com/page",
+          "snippet": "AI-powered content generation",
+          "label": "keyword_match"
+        }
+      ]
     },
-    {
-      "criterion": "API Availability",
+    "api_availability": {
+      "name": "API Availability",
       "passed": true,
-      "confidence": 0.87
+      "reason": "Public API endpoint detected",
+      "confidence": 0.87,
+      "evidence": []
     }
-  ],
+  },
   "summary": "Strong AI service indicators. Passed 6/8 critical criteria.",
   "extracted": {
     "title": "Example AI Tool",
@@ -297,7 +307,7 @@ Content-Type: application/json
 | `score_breakdown` | object | 세부 점수 항목별 분석 |
 | `review_required` | boolean | 수동 검토 필요 여부 |
 | `review_reasons` | array | 검토가 필요한 사유 목록 |
-| `criteria` | array | 각 기준별 평가 결과 |
+| `criteria` | object | 각 기준(key)별 평가 결과 (name, passed, reason, confidence, evidence) |
 | `summary` | string | 분류 결과의 한 문장 요약 |
 | `extracted` | object | 추출된 메타데이터 (제목, 설명, 기능 등) |
 
@@ -339,7 +349,7 @@ GET /jobs/{job_id}
 
 **Header:**
 ```
-X-API-Key: {api_key}
+x-api-key: {api_key}
 ```
 
 ### Response (진행 중)
@@ -416,7 +426,7 @@ X-API-Key: {api_key}
 | `categories` | array | 카테고리 분류 목록 |
 | `tags` | array | 기능 태그 목록 |
 | `scores` | object | 점수 (`utility`, `trust`, `originality`, 각 1-10) |
-| `analyzer` | string \| null | 분석에 사용된 도구 (`gemini`, `claude` 등) |
+| `analyzer` | string \| null | 분석에 사용된 도구 (`gemini`) |
 | `last_analyzed_at` | ISO 8601 \| null | 마지막 분석 시각 |
 
 ### Response (실패)
@@ -490,18 +500,18 @@ X-API-Key: {api_key}
 
 ### cURL
 
-#### 비동기 단일 분석 요청
+#### 비동기 분석 요청
 ```bash
 curl -X POST http://localhost:8000/api/v1/analyze \
-  -H "X-API-Key: your-api-key" \
+  -H "x-api-key: your-api-key" \
   -H "Content-Type: application/json" \
-  -d '{"url": "https://www.example-ai-tool.com"}'
+  -d '{"urls": ["https://www.example-ai-tool.com"]}'
 ```
 
 #### 비동기 일괄 분석 — 파일 업로드
 ```bash
 curl -X POST http://localhost:8000/api/v1/analyze/batch/upload \
-  -H "X-API-Key: your-api-key" \
+  -H "x-api-key: your-api-key" \
   -F "file=@urls.json" \
   -F "force_reanalyze=false"
 ```
@@ -509,7 +519,7 @@ curl -X POST http://localhost:8000/api/v1/analyze/batch/upload \
 #### 비동기 일괄 분석 — 서버 경로
 ```bash
 curl -X POST http://localhost:8000/api/v1/analyze/batch/file \
-  -H "X-API-Key: your-api-key" \
+  -H "x-api-key: your-api-key" \
   -H "Content-Type: application/json" \
   -d '{"file_path": "data/ai-tools.json", "force_reanalyze": false}'
 ```
@@ -517,20 +527,20 @@ curl -X POST http://localhost:8000/api/v1/analyze/batch/file \
 #### 상태 조회
 ```bash
 curl -X GET http://localhost:8000/api/v1/jobs/{job_id} \
-  -H "X-API-Key: your-api-key"
+  -H "x-api-key: your-api-key"
 ```
 
 #### 규칙기반 동기 분류
 ```bash
 curl -X POST http://localhost:8000/api/v1/rule/classify \
-  -H "X-API-Key: your-api-key" \
+  -H "x-api-key: your-api-key" \
   -H "Content-Type: application/json" \
   -d '{"url": "https://www.example-ai-tool.com"}'
 ```
 
 ### Python (requests)
 
-#### 비동기 단일 분석 요청
+#### 비동기 분석 요청
 ```python
 import requests
 
@@ -541,9 +551,10 @@ headers = {"X-API-Key": api_key}
 response = requests.post(
     "http://localhost:8000/api/v1/analyze",
     headers=headers,
-    json={"url": "https://www.example-ai-tool.com"}
+    json={"urls": ["https://www.example-ai-tool.com"]}
 )
-job_id = response.json()["job_id"]
+jobs = response.json()
+job_id = jobs[0]["job_id"]
 
 # 상태 조회
 response = requests.get(
