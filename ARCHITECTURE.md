@@ -325,28 +325,22 @@ Background Task: analyze_ai_tools_batch(urls[], force_reanalyze)
   │  ├─ 기존 분석이 성공 → 스킵
   │  └─ 기존 분석이 실패 또는 미분석 → pending 리스트에 추가
   ├─ 2. Job 레코드 일괄 생성 (pending URL당 1개)
-  ├─ 3. ThreadPoolExecutor로 병렬 LLM 분석
-  │  ├─ 워커 수: BATCH_CONCURRENCY (기본값: 5)
-  │  ├─ 각 워커: 독립 DB 세션에서 _analyze_one(url, job_id) 실행
-  │  └─ 완료: (url, job_id, result, error) 반환
-  ├─ 4. 병렬 결과 수집
-  │  ├─ 성공: success_map[job_id] = site_id
-  │  └─ 실패: failure_map[job_id] = error
-  ├─ 5. Job 상태 일괄 업데이트 (success/failed)
-  ├─ 6. 전체 결과를 파일 하나에 저장 (write_batch)
-  └─ 7. 요약 반환 {analyzed, skipped, failed, output_path}
+  ├─ 3. LLM 분석 모드 분기
+  │  ├─ 배치 지원 분석기 (Gemini): _analyze_batch_with_llm() 호출
+  │  │  ├─ analyze_websites_batch(urls) 로 LLM 1회 호출
+  │  │  └─ 단일 DB 세션에서 순차 저장
+  │  └─ 단건 분석기: ThreadPoolExecutor로 병렬 처리
+  │     ├─ 워커 수: BATCH_CONCURRENCY (기본값: 5)
+  │     └─ 각 워커: 독립 DB 세션에서 _analyze_one(url, job_id) 실행
+  ├─ 4. Job 상태 일괄 업데이트 (success/failed)
+  ├─ 5. 전체 결과를 파일 하나에 저장 (write_batch)
+  └─ 6. 요약 반환 {analyzed, skipped, failed, output_path}
 
 Task 설정:
   - autoretry_for: () (자동 재시도 없음)
   - max_retries: 0 (수동 재시도만)
   - time_limit: 3600s (hard, 1시간)
   - soft_time_limit: 3300s (55분)
-
-병렬 처리:
-  - 최대 동시 워커: BATCH_CONCURRENCY (환경변수)
-  - 각 워커: ThreadPoolExecutor 풀에서 독립 스레드 실행
-  - DB 쓰기: 각 워커의 독립 DB 세션에서 처리
-  - 결과 파일: 병렬 완료 후 단일 세션으로 한 번만 쓰기
 ```
 
 ### 규칙기반 분석 (CLASSIFIER_MODE=rule)
@@ -584,7 +578,8 @@ sw-test/
 
 | 유형 | 재시도 | 처리 |
 |---|---|---|
-| Gemini API 오류 (429, 503 제외) | 3회 | 자동 재시도, 최종 실패 |
+| Gemini API 오류 (400, 429, 503 제외) | 3회 | 자동 재시도, 최종 실패 |
+| Gemini API 400 (INVALID_ARGUMENT) | 0회 | 즉시 실패 처리 (재시도 무의미) |
 | Gemini API 503 (서버 오류) | 0회 | 즉시 실패 처리 |
 | Gemini API 429 (Rate limit) | 0회 | 즉시 실패 처리 |
 | url_context fetch 실패 (접근 불가 URL) | 0회 | 즉시 실패 처리 |
