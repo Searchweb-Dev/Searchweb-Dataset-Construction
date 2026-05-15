@@ -31,7 +31,7 @@ def analyze(
     api_key: str = Depends(verify_api_key),
     db: Session = Depends(get_db),
 ):
-    """URL 목록을 비동기로 LLM 분석한다 (최대 5개).
+    """URL 목록을 비동기로 LLM 분석한다 (최대 10개).
 
     LLM으로 이미 분석된 URL은 캐시 결과를 즉시 반환한다.
     rule 분석 URL 또는 미분석 URL은 LLM 배치 분석 대상이 된다.
@@ -40,7 +40,7 @@ def analyze(
     작업 결과는 GET /jobs/{job_id}로 폴링해 확인한다.
 
     Args:
-        request: 분류할 URL 목록(최대 5개)과 재분류 강제 여부.
+        request: 분류할 URL 목록(최대 10개)과 재분류 강제 여부.
         api_key: API 키 검증 의존성.
         db: DB 세션 의존성.
 
