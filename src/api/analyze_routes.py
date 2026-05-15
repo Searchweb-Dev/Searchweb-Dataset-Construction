@@ -157,7 +157,7 @@ async def analyze_batch_upload(
         raise HTTPException(status_code=400, detail=str(e))
 
     logger.info("[batch/upload] %d개 URL 접수 (파일: %s)", len(urls), file.filename)
-    analyze_urls_bulk.delay(urls, force_reanalyze)
+    analyze_urls_bulk.delay(urls, force_reanalyze, file.filename)
 
     return BatchAnalysisResponse(
         total=len(urls),
@@ -196,7 +196,7 @@ def analyze_batch_file(
         raise HTTPException(status_code=400, detail=str(e))
 
     logger.info("[batch/file] %d개 URL 접수 (경로: %s)", len(urls), request.file_path)
-    analyze_urls_bulk.delay(urls, request.force_reanalyze)
+    analyze_urls_bulk.delay(urls, request.force_reanalyze, request.file_path)
 
     return BatchAnalysisResponse(
         total=len(urls),

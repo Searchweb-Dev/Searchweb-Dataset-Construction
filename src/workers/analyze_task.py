@@ -39,66 +39,6 @@ def _is_failed_analysis(site: AISite) -> bool:
     )
 
 
-# 전역 task_autoretry_for 미설정 — 재시도는 각 태스크가 명시적으로 관리한다.
-@app.task(bind=True, max_retries=3, autoretry_for=(), time_limit=600, soft_time_limit=540)
-def analyze_urls_batch(self, job_ids: list[str], urls: list[str]) -> dict[str, Any]:
-    """URL 목록을 ThreadPoolExecutor로 병렬 단건 분석한다.
-
-    Args:
-        job_ids: 분석 작업 ID 목록 (urls와 동일 순서).
-        urls: 분석 대상 URL 목록 (최대 5개).
-
-    Returns:
-        성공/실패 건수 요약 딕셔너리.
-    """
-    logger.info("배치 분석 task 시작: %d개 URL %s", len(urls), urls)
-    db = SessionLocal()
-    now = utc_now()
-
-    try:
-        jobs = {
-            str(job.job_id): job
-            for job in db.query(AnalysisJob).filter(
-                AnalysisJob.job_id.in_(job_ids)
-            ).all()
-        }
-        for job in jobs.values():
-            job.status = JobStatus.PROCESSING
-            job.started_at = now
-        db.commit()
-        logger.info("Job 상태 PROCESSING 업데이트 완료: %d건", len(jobs))
-    finally:
-        db.close()
-
-    job_id_map: dict[str, UUID] = {url: UUID(jid) for jid, url in zip(job_ids, urls)}
-    success_map: dict[UUID, int | None] = {}
-    failure_map: dict[UUID, str] = {}
-
-    with ThreadPoolExecutor(max_workers=_BATCH_CONCURRENCY) as executor:
-        futures = {
-            executor.submit(_analyze_one, url, job_id_map[url]): url
-            for url in urls
-        }
-        for future in as_completed(futures):
-            url, job_id, result, error = future.result()
-            if error:
-                logger.error("배치 항목 분석 실패: %s (%s)", url, error)
-                failure_map[job_id] = error
-            else:
-                success_map[job_id] = result.get("site_id") if result else None
-                logger.info(
-                    "항목 분류 완료: %s | is_ai_tool=%s",
-                    url, result.get("is_ai_tool") if result else None,
-                )
-
-    _update_job_statuses(success_map, failure_map)
-
-    success = len(success_map)
-    failed = len(failure_map)
-    logger.info("배치 분류 task 완료: 성공=%d 실패=%d 전체=%d", success, failed, len(urls))
-    return {"success": success, "failed": failed, "total": len(urls)}
-
-
 @app.task(bind=True, max_retries=3, autoretry_for=(), time_limit=300, soft_time_limit=240)
 def analyze_url(self, job_id: str, url: str) -> dict[str, Any]:
     """
@@ -197,6 +137,66 @@ def analyze_url(self, job_id: str, url: str) -> dict[str, Any]:
         db.close()
 
 
+# 전역 task_autoretry_for 미설정 — 재시도는 각 태스크가 명시적으로 관리한다.
+@app.task(bind=True, max_retries=3, autoretry_for=(), time_limit=600, soft_time_limit=540)
+def analyze_urls_batch(self, job_ids: list[str], urls: list[str]) -> dict[str, Any]:
+    """URL 목록을 ThreadPoolExecutor로 병렬 단건 분석한다.
+
+    Args:
+        job_ids: 분석 작업 ID 목록 (urls와 동일 순서).
+        urls: 분석 대상 URL 목록 (최대 5개).
+
+    Returns:
+        성공/실패 건수 요약 딕셔너리.
+    """
+    logger.info("배치 분석 task 시작: %d개 URL %s", len(urls), urls)
+    db = SessionLocal()
+    now = utc_now()
+
+    try:
+        jobs = {
+            str(job.job_id): job
+            for job in db.query(AnalysisJob).filter(
+                AnalysisJob.job_id.in_(job_ids)
+            ).all()
+        }
+        for job in jobs.values():
+            job.status = JobStatus.PROCESSING
+            job.started_at = now
+        db.commit()
+        logger.info("Job 상태 PROCESSING 업데이트 완료: %d건", len(jobs))
+    finally:
+        db.close()
+
+    job_id_map: dict[str, UUID] = {url: UUID(jid) for jid, url in zip(job_ids, urls)}
+    success_map: dict[UUID, int | None] = {}
+    failure_map: dict[UUID, str] = {}
+
+    with ThreadPoolExecutor(max_workers=_BATCH_CONCURRENCY) as executor:
+        futures = {
+            executor.submit(_analyze_one, url, job_id_map[url]): url
+            for url in urls
+        }
+        for future in as_completed(futures):
+            url, job_id, result, error = future.result()
+            if error:
+                logger.error("배치 항목 분석 실패: %s (%s)", url, error)
+                failure_map[job_id] = error
+            else:
+                success_map[job_id] = result.get("site_id") if result else None
+                logger.info(
+                    "항목 분류 완료: %s | is_ai_tool=%s",
+                    url, result.get("is_ai_tool") if result else None,
+                )
+
+    _update_job_statuses(success_map, failure_map)
+
+    success = len(success_map)
+    failed = len(failure_map)
+    logger.info("배치 분류 task 완료: 성공=%d 실패=%d 전체=%d", success, failed, len(urls))
+    return {"success": success, "failed": failed, "total": len(urls)}
+
+
 def _analyze_one(url: str, job_id: UUID) -> tuple[str, UUID, dict[str, Any] | None, str | None]:
     """
     URL 하나를 독립 DB 세션으로 분석한다. ThreadPoolExecutor 워커에서 호출된다.
@@ -246,7 +246,7 @@ def _update_job_statuses(
 
 
 @app.task(autoretry_for=(), max_retries=0, time_limit=3600, soft_time_limit=3300)
-def analyze_urls_bulk(urls: list[str], force_reanalyze: bool) -> dict[str, Any]:
+def analyze_urls_bulk(urls: list[str], force_reanalyze: bool, source_path: Optional[str] = None) -> dict[str, Any]:
     """
     URL 목록을 병렬 분석하고 결과를 파일 한 개에 저장한다.
 
@@ -257,6 +257,7 @@ def analyze_urls_bulk(urls: list[str], force_reanalyze: bool) -> dict[str, Any]:
     Args:
         urls: 분석할 URL 문자열 목록.
         force_reanalyze: True면 이미 분석된 URL도 재분석.
+        source_path: 출력 파일명 기준이 될 원본 파일 경로. 미지정 시 기본 ai-tools.json.
 
     Returns:
         analyzed/skipped/failed/output_path 정보 딕셔너리
@@ -281,15 +282,21 @@ def analyze_urls_bulk(urls: list[str], force_reanalyze: bool) -> dict[str, Any]:
             }
             for url in normalized_urls:
                 ex = existing_map.get(url)
-                if ex and not _is_failed_analysis(ex):
+                if ex and _is_failed_analysis(ex):
+                    logger.warning(
+                        "이전 분석이 실패 상태입니다. 재분석합니다: %s "
+                        "(title=%r, description=%r)", url, ex.title, ex.description
+                    )
+                    pending_urls.append(url)
+                elif ex and ex.analyzer in (None, "rule"):
+                    # analyze API와 동일하게 rule/미분석 결과는 LLM 재분석 대상
+                    logger.info("rule 분류 결과를 LLM으로 재분석합니다: %s (analyzer=%s)", url, ex.analyzer)
+                    pending_urls.append(url)
+                elif ex:
+                    # LLM 분석 결과가 있으면 캐시 히트로 스킵
                     skipped += 1
-                    logger.debug(f"분석 스킵 (기존 데이터): {url}")
+                    logger.debug("분석 스킵 (LLM 캐시, analyzer=%s): %s", ex.analyzer, url)
                 else:
-                    if ex:
-                        logger.warning(
-                            f"이전 분석이 실패 상태입니다. 재분석합니다: {url} "
-                            f"(title={ex.title!r}, description={ex.description!r})"
-                        )
                     pending_urls.append(url)
         else:
             pending_urls = normalized_urls
@@ -310,6 +317,11 @@ def analyze_urls_bulk(urls: list[str], force_reanalyze: bool) -> dict[str, Any]:
         db.commit()
     finally:
         db.close()
+
+    logger.info(
+        "대상 판단 완료: 전체 %d건 → 분석 대상 %d건, 스킵 %d건 (force_reanalyze=%s)",
+        len(normalized_urls), len(pending_urls), skipped, force_reanalyze,
+    )
 
     if not pending_urls:
         logger.info(f"배치 완료: 분석 0건, 스킵 {skipped}건, 실패 0건")
@@ -340,8 +352,10 @@ def analyze_urls_bulk(urls: list[str], force_reanalyze: bool) -> dict[str, Any]:
     # Job 상태 일괄 업데이트 (세션 1개)
     _update_job_statuses(success_map, failure_map)
 
-    # 이번 배치 전체 결과를 파일 한 개에 저장
-    output_path = write_batch(batch_results, checked_at=checked_at)
+    # 이번 배치 전체 결과(성공+실패)를 파일 한 개에 저장
+    url_by_job_id = {jid: u for u, jid in job_id_map.items()}
+    failure_list = [(url_by_job_id[jid], err) for jid, err in failure_map.items() if jid in url_by_job_id]
+    output_path = write_batch(batch_results, checked_at=checked_at, failures=failure_list, source_path=source_path)
 
     failed = len(failure_map)
     logger.info(
