@@ -49,8 +49,14 @@ _SITE_SCHEMA = {
 }
 
 _BATCH_SCHEMA = {
-    "type": "array",
-    "items": _SITE_SCHEMA,
+    "type": "object",
+    "properties": {
+        "results": {
+            "type": "array",
+            "items": _SITE_SCHEMA,
+        }
+    },
+    "required": ["results"],
 }
 
 
@@ -188,7 +194,9 @@ class GeminiAnalyzer:
         try:
             if response.text:
                 parsed = json.loads(response.text)
-                if isinstance(parsed, list):
+                if isinstance(parsed, dict) and isinstance(parsed.get("results"), list):
+                    results = parsed["results"]
+                elif isinstance(parsed, list):
                     results = parsed
         except (json.JSONDecodeError, AttributeError):
             logger.warning("배치 응답 파싱 실패, 전체 기본값 반환")

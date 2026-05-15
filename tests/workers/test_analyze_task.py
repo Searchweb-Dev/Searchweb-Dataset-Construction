@@ -4,12 +4,12 @@ from uuid import uuid4
 import pytest
 
 
-def test_analyze_task_exists():
+def test_analyze_url_task_exists():
     """분석 작업 존재 확인."""
-    from src.workers.analyze_task import analyze_website
-    
-    assert analyze_website is not None
-    assert hasattr(analyze_website, "name")
+    from src.workers.analyze_task import analyze_url
+
+    assert analyze_url is not None
+    assert hasattr(analyze_url, "name")
 
 
 def test_celery_app_configured():

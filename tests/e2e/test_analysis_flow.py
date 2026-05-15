@@ -20,7 +20,7 @@ def valid_api_key():
 @pytest.fixture(autouse=True)
 def mock_celery_task():
     """Celery 작업 Mock."""
-    with patch("src.api.analyze_routes.analyze_website_batch") as mock_task:
+    with patch("src.api.analyze_routes.analyze_urls_batch") as mock_task:
         mock_task.delay = MagicMock(return_value=Mock(id="mock-task-id"))
         yield mock_task
 

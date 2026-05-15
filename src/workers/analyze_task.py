@@ -41,7 +41,7 @@ def _is_failed_analysis(site: AISite) -> bool:
 
 # 전역 task_autoretry_for 미설정 — 재시도는 각 태스크가 명시적으로 관리한다.
 @app.task(bind=True, max_retries=3, autoretry_for=(), time_limit=600, soft_time_limit=540)
-def analyze_website_batch(self, job_ids: list[str], urls: list[str]) -> dict[str, Any]:
+def analyze_urls_batch(self, job_ids: list[str], urls: list[str]) -> dict[str, Any]:
     """URL 목록을 LLM 1회 호출로 배치 분석한다.
 
     Args:
@@ -164,7 +164,7 @@ def analyze_website_batch(self, job_ids: list[str], urls: list[str]) -> dict[str
 
 
 @app.task(bind=True, max_retries=3, autoretry_for=(), time_limit=300, soft_time_limit=240)
-def analyze_website(self, job_id: str, url: str) -> dict[str, Any]:
+def analyze_url(self, job_id: str, url: str) -> dict[str, Any]:
     """
     웹사이트 분석 작업 (단건).
 
@@ -388,7 +388,7 @@ def _update_job_statuses(
 
 
 @app.task(autoretry_for=(), max_retries=0, time_limit=3600, soft_time_limit=3300)
-def analyze_ai_tools_batch(urls: list[str], force_reanalyze: bool) -> dict[str, Any]:
+def analyze_urls_bulk(urls: list[str], force_reanalyze: bool) -> dict[str, Any]:
     """
     URL 목록을 병렬 분석하고 결과를 파일 한 개에 저장한다.
 

@@ -18,7 +18,7 @@ from src.schemas import (
     BatchAnalysisResponse,
     BatchFilePathRequest,
 )
-from src.workers.analyze_task import analyze_ai_tools_batch, analyze_website_batch
+from src.workers.analyze_task import analyze_urls_batch, analyze_urls_bulk
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +116,7 @@ def analyze(
 
     if pending_urls:
         logger.info("[analyze] LLM 배치 분석 디스패치: %d개 URL %s", len(pending_urls), pending_urls)
-        analyze_website_batch.delay(pending_job_ids, pending_urls)
+        analyze_urls_batch.delay(pending_job_ids, pending_urls)
     else:
         logger.info("[analyze] 모든 URL 캐시 히트 — LLM 호출 없음")
 
@@ -157,7 +157,7 @@ async def analyze_batch_upload(
         raise HTTPException(status_code=400, detail=str(e))
 
     logger.info("[batch/upload] %d개 URL 접수 (파일: %s)", len(urls), file.filename)
-    analyze_ai_tools_batch.delay(urls, force_reanalyze)
+    analyze_urls_bulk.delay(urls, force_reanalyze)
 
     return BatchAnalysisResponse(
         total=len(urls),
@@ -196,7 +196,7 @@ def analyze_batch_file(
         raise HTTPException(status_code=400, detail=str(e))
 
     logger.info("[batch/file] %d개 URL 접수 (경로: %s)", len(urls), request.file_path)
-    analyze_ai_tools_batch.delay(urls, request.force_reanalyze)
+    analyze_urls_bulk.delay(urls, request.force_reanalyze)
 
     return BatchAnalysisResponse(
         total=len(urls),

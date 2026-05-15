@@ -11,7 +11,7 @@ class TestAnalysisPerformance:
     @pytest.fixture(autouse=True)
     def mock_celery(self):
         """Celery 작업 Mock."""
-        with patch("src.api.analyze_routes.analyze_website_batch") as mock_task:
+        with patch("src.api.analyze_routes.analyze_urls_batch") as mock_task:
             mock_task.delay = MagicMock(return_value=Mock(id="mock-task-id"))
             yield mock_task
 
@@ -59,7 +59,7 @@ class TestConcurrentAnalysis:
     @pytest.fixture(autouse=True)
     def mock_celery(self):
         """Celery 작업 Mock."""
-        with patch("src.api.analyze_routes.analyze_website_batch") as mock_task:
+        with patch("src.api.analyze_routes.analyze_urls_batch") as mock_task:
             mock_task.delay = MagicMock(return_value=Mock(id="mock-task-id"))
             yield mock_task
 
