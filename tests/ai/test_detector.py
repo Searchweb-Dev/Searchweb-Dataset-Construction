@@ -1,6 +1,6 @@
 """AI 판별 로직 테스트."""
 
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, MagicMock
 import pytest
 from datetime import datetime
 from sqlalchemy.orm import Session
@@ -27,19 +27,8 @@ def test_detector_initialization(detector, mock_db):
     assert detector.analyzer is not None
 
 
-@patch("src.ai.detector.render_website_sync")
-def test_detect_and_save_success(mock_render, detector, mock_db):
+def test_detect_and_save_success(detector, mock_db):
     """분석 및 저장 - 성공 케이스."""
-    
-    # Mock render
-    mock_render.return_value = {
-        "url": "https://example.com",
-        "title": "Example",
-        "description": "Test site",
-        "text_content": "Example content",
-        "screenshot_base64": "base64data",
-    }
-    
     # Mock analyze
     detector.analyzer.analyze_website = Mock(return_value={
         "is_ai_tool": True,
