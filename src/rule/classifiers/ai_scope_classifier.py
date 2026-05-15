@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import re
 import logging
-from typing import Dict, Optional
 
 from src.rule.keywords import (
     AI_SITE_STRONG_KEYWORDS,
@@ -26,9 +25,9 @@ class AiScopeClassifierMixin:
     def _classify_ai_scope(
         self,
         homepage: FetchResult,
-        all_pages: Dict[str, FetchResult],
-        text_cache: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, object]:
+        all_pages: dict[str, FetchResult],
+        text_cache: dict[str, str] | None = None,
+    ) -> dict[str, object]:
         """페이지 텍스트/링크를 결합해 AI 사이트 판정 결과를 반환한다."""
         combined_blob = ""
         if text_cache:
@@ -40,7 +39,7 @@ class AiScopeClassifierMixin:
             combined_blob = lower(" ".join(page_blobs + link_blobs))
         return self._infer_ai_site_scope(combined_blob, homepage)
 
-    def _infer_ai_site_scope(self, text_blob: str, homepage: FetchResult) -> Dict[str, object]:
+    def _infer_ai_site_scope(self, text_blob: str, homepage: FetchResult) -> dict[str, object]:
         """수집 텍스트를 기반으로 평가 대상이 AI 사이트인지 판별한다."""
         normalized_blob = lower(text_blob)
         strong_ai_hits = self._collect_keyword_hits(normalized_blob, AI_SITE_STRONG_KEYWORDS)

@@ -16,7 +16,7 @@ router = APIRouter()
 
 @router.get("/{job_id}", response_model=AnalysisJobResponse)
 def get_job_status(
-    job_id: str,
+    job_id: UUID,
     api_key: str = Depends(verify_api_key),
     db: Session = Depends(get_db),
 ):
@@ -26,7 +26,7 @@ def get_job_status(
     완료 전이면 result 필드는 null이다.
 
     Args:
-        job_id: 조회할 작업의 UUID 문자열.
+        job_id: 조회할 작업의 UUID.
         api_key: API 키 검증 의존성.
         db: DB 세션 의존성.
 
@@ -34,15 +34,10 @@ def get_job_status(
         작업 상태 및 완료 시 분석 결과(site 정보, 카테고리, 태그, 점수).
 
     Raises:
-        HTTPException 400: job_id가 유효한 UUID 형식이 아닌 경우.
+        HTTPException 422: job_id가 유효한 UUID 형식이 아닌 경우.
         HTTPException 404: 해당 job_id의 작업이 존재하지 않는 경우.
     """
-    try:
-        job_uuid = UUID(job_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid job_id format")
-
-    job = db.query(AnalysisJob).filter(AnalysisJob.job_id == job_uuid).first()
+    job = db.query(AnalysisJob).filter(AnalysisJob.job_id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 

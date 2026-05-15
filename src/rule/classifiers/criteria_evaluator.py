@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import re
 import logging
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Callable, Iterable
 
 from src.rule.config import EvalConfig
 from src.rule.classifiers.ai_scope_classifier import AiScopeClassifierMixin
@@ -16,11 +16,11 @@ from src.rule.fetchers.page_fetcher import PageFetcher
 from src.rule.models import ClearDescriptionLLM, CriterionResult, EvaluationResult, Evidence, FetchResult
 from src.rule.classifiers.status_policy import StatusPolicyMixin
 from src.rule.classifiers.taxonomy_classifier import TaxonomyClassifierMixin
-from src.rule.utils import has_usable_url_hint, is_same_domain, keyword_hit, lower, snippet, split_sentences
+from src.rule.utils import has_usable_url_hint, is_same_domain, keyword_hit, lower, normalize_url, snippet, split_sentences
 
 logger = logging.getLogger(__name__)
 
-PipelineStep = Callable[[Any, Dict[str, object]], None]
+PipelineStep = Callable[[Any, dict[str, object]], None]
 
 
 class CriteriaEvaluatorMixin:
@@ -29,9 +29,9 @@ class CriteriaEvaluatorMixin:
     def _build_criteria(
         self,
         homepage: FetchResult,
-        all_pages: Dict[str, FetchResult],
-        extracted: Dict[str, object],
-    ) -> Dict[str, CriterionResult]:
+        all_pages: dict[str, FetchResult],
+        extracted: dict[str, object],
+    ) -> dict[str, CriterionResult]:
         """5개 품질 지표 결과를 생성해 dict로 반환한다."""
         ai_scope = extracted.get("ai_scope", {})
         if ai_scope and str(ai_scope.get("scope_decision", "")).lower() == "non_ai":
@@ -67,7 +67,7 @@ class CriteriaEvaluatorMixin:
             "has_privacy_or_data_policy": policy,
         }
 
-    def _build_non_ai_scope_criteria(self, homepage: FetchResult, detail_reason: str) -> Dict[str, CriterionResult]:
+    def _build_non_ai_scope_criteria(self, homepage: FetchResult, detail_reason: str) -> dict[str, CriterionResult]:
         """AI 사이트가 아닌 경우 평가 제외용 criterion 결과를 생성한다."""
         reason = "AI 사이트 판별 게이트에서 제외됨"
         if detail_reason:
@@ -91,7 +91,7 @@ class CriteriaEvaluatorMixin:
             for name in names
         }
 
-    def _sample_ok_page_urls(self, all_pages: Dict[str, FetchResult], limit: int = 3) -> str:
+    def _sample_ok_page_urls(self, all_pages: dict[str, FetchResult], limit: int = 3) -> str:
         """정상 수집된 페이지 URL 샘플 문자열을 반환한다."""
         ok_urls = [p.final_url for p in all_pages.values() if p.ok and p.final_url]
         if not ok_urls:
@@ -101,11 +101,11 @@ class CriteriaEvaluatorMixin:
             return f"{', '.join(sample)} 외 {len(ok_urls) - limit}개"
         return ", ".join(sample)
 
-    def _eval_usable_now(self, homepage: FetchResult, all_pages: Dict[str, FetchResult], extracted: Dict[str, object]) -> CriterionResult:
+    def _eval_usable_now(self, homepage: FetchResult, all_pages: dict[str, FetchResult], extracted: dict[str, object]) -> CriterionResult:
         """즉시 사용 가능 경로(가입/로그인/설치/실행) 존재 여부를 평가한다."""
         from src.rule.keywords import NEGATIVE_USE_TEXT, POSITIVE_USE_TEXT
 
-        evidence: List[Evidence] = []
+        evidence: list[Evidence] = []
         usable_pages = [p for p in all_pages.values() if p.ok]
         if homepage.ok:
             blob = lower(" ".join([homepage.title, homepage.meta_description, homepage.text[:3000]]))
@@ -161,10 +161,10 @@ class CriteriaEvaluatorMixin:
         reason = "즉시 사용 가능한 경로를 공개 페이지에서 확인하지 못함" if homepage.ok else "홈페이지 접근 실패 후 대체 페이지에서도 즉시 사용 가능한 경로를 확인하지 못함"
         return CriterionResult(name="usable_now", passed=False, reason=reason, confidence=0.7, evidence=[Evidence(homepage.final_url, snippet(homepage.text), "homepage")])
 
-    def _eval_clear_function_desc(self, homepage: FetchResult, all_pages: Dict[str, FetchResult], extracted: Dict[str, object]) -> CriterionResult:
+    def _eval_clear_function_desc(self, homepage: FetchResult, all_pages: dict[str, FetchResult], extracted: dict[str, object]) -> CriterionResult:
         """서비스 기능 설명의 구체성(누가/무엇을/어떻게)을 평가한다."""
-        evidence: List[Evidence] = []
-        candidate_texts: List[Tuple[str, str]] = []
+        evidence: list[Evidence] = []
+        candidate_texts: list[tuple[str, str]] = []
         for p in all_pages.values():
             if p.ok:
                 candidate_texts.append((p.final_url, " ".join([p.title, p.meta_description, p.text[:2500]])))
@@ -223,9 +223,9 @@ class CriteriaEvaluatorMixin:
         reason = "누가/무엇을/어떻게에 해당하는 기능 설명을 추출 가능" if passed else "마케팅 문구는 있으나 구체 기능 설명으로 보기 어려움"
         return CriterionResult(name="clear_function_desc", passed=passed, reason=reason, confidence=best_score, evidence=evidence or [Evidence(homepage.final_url, snippet(homepage.meta_description or homepage.text), "homepage")])
 
-    def _eval_pricing(self, homepage: FetchResult, all_pages: Dict[str, FetchResult], extracted: Dict[str, object]) -> CriterionResult:
+    def _eval_pricing(self, homepage: FetchResult, all_pages: dict[str, FetchResult], extracted: dict[str, object]) -> CriterionResult:
         """공개 pricing/plan/licensing 신호 존재 여부를 평가한다."""
-        pricing_pages: List[str] = extracted.get("pricing_pages", [])  # type: ignore[assignment]
+        pricing_pages: list[str] = extracted.get("pricing_pages", [])  # type: ignore[assignment]
         ok_page_count = sum(1 for p in all_pages.values() if p.ok)
         url_sample = self._sample_ok_page_urls(all_pages)
         if pricing_pages:
@@ -261,9 +261,9 @@ class CriteriaEvaluatorMixin:
             evidence=[Evidence(homepage.final_url, snippet(homepage.text), "homepage")],
         )
 
-    def _eval_docs(self, homepage: FetchResult, all_pages: Dict[str, FetchResult], extracted: Dict[str, object]) -> CriterionResult:
+    def _eval_docs(self, homepage: FetchResult, all_pages: dict[str, FetchResult], extracted: dict[str, object]) -> CriterionResult:
         """docs/help/guide/faq 존재 여부를 평가한다."""
-        docs_pages: List[str] = extracted.get("docs_pages", [])  # type: ignore[assignment]
+        docs_pages: list[str] = extracted.get("docs_pages", [])  # type: ignore[assignment]
         ok_pages = [p for p in all_pages.values() if p.ok]
         docs_hint_count = 0
         for p in ok_pages:
@@ -299,9 +299,9 @@ class CriteriaEvaluatorMixin:
             evidence=[Evidence(homepage.final_url, snippet(homepage.text), "homepage")],
         )
 
-    def _eval_policy(self, homepage: FetchResult, all_pages: Dict[str, FetchResult], extracted: Dict[str, object]) -> CriterionResult:
+    def _eval_policy(self, homepage: FetchResult, all_pages: dict[str, FetchResult], extracted: dict[str, object]) -> CriterionResult:
         """privacy/terms/data policy 관련 문서 존재 여부를 평가한다."""
-        policy_pages: List[str] = extracted.get("policy_pages", [])  # type: ignore[assignment]
+        policy_pages: list[str] = extracted.get("policy_pages", [])  # type: ignore[assignment]
         ok_pages = [p for p in all_pages.values() if p.ok]
         policy_hint_count = 0
         for p in ok_pages:
@@ -348,7 +348,7 @@ class CriteriaEvaluatorMixin:
             evidence=[Evidence(homepage.final_url, snippet(homepage.text), "homepage")],
         )
 
-    def _calculate_weighted_scores(self, criteria: Dict[str, CriterionResult]) -> Tuple[Dict[str, float], float, Dict[str, float]]:
+    def _calculate_weighted_scores(self, criteria: dict[str, CriterionResult]) -> tuple[dict[str, float], float, dict[str, float]]:
         """기준별 confidence와 가중치로 점수 상세/총점을 계산한다."""
         weights = {
             "usable_now": self.config.usable_now_weight,
@@ -357,8 +357,8 @@ class CriteriaEvaluatorMixin:
             "has_privacy_or_data_policy": self.config.privacy_or_policy_weight,
             "has_pricing": self.config.pricing_weight,
         }
-        criterion_scores: Dict[str, float] = {}
-        weighted_points: Dict[str, float] = {}
+        criterion_scores: dict[str, float] = {}
+        weighted_points: dict[str, float] = {}
         total = 0.0
         for name, result in criteria.items():
             base = max(0.0, min(result.confidence, 1.0)) if result.passed else 0.0
@@ -381,14 +381,14 @@ class BaseToolQualityEvaluator(
     def __init__(
         self,
         fetcher: PageFetcher,
-        config: Optional[EvalConfig] = None,
-        llm: Optional[ClearDescriptionLLM] = None,
+        config: EvalConfig | None = None,
+        llm: ClearDescriptionLLM | None = None,
     ):
         """설정/수집기(fetcher)/파이프라인 스텝 컨테이너를 초기화한다."""
         self.config = config or EvalConfig()
         self.fetcher = fetcher
         self.llm = llm
-        self.pipeline_steps: List[PipelineStep] = []
+        self.pipeline_steps: list[PipelineStep] = []
 
     def set_pipeline_steps(self, steps: Iterable[PipelineStep]) -> None:
         """실행 스텝 순서를 외부에서 주입한다."""
@@ -396,9 +396,7 @@ class BaseToolQualityEvaluator(
 
     def evaluate(self, url: str) -> EvaluationResult:
         """단일 URL에 대해 파이프라인을 실행하고 EvaluationResult를 반환한다."""
-        from src.rule.utils import normalize_url
-
-        context: Dict[str, Any] = {
+        context: dict[str, Any] = {
             "input_url": url,
             "normalized_url": normalize_url(url),
         }
@@ -428,7 +426,7 @@ class BaseToolQualityEvaluator(
 class WeightedQualityEvaluator(BaseToolQualityEvaluator):
     """가중치 점수 기반 품질 평가 정책을 구현한 evaluator."""
 
-    def _build_score_context(self, criteria: Dict[str, CriterionResult]) -> Dict[str, object]:
+    def _build_score_context(self, criteria: dict[str, CriterionResult]) -> dict[str, object]:
         """기준별 점수 상세/총점/기준 점수를 포함한 score context를 생성한다."""
         score_breakdown, total_score, criterion_scores = self._calculate_weighted_scores(criteria)
         return {
@@ -439,10 +437,10 @@ class WeightedQualityEvaluator(BaseToolQualityEvaluator):
 
     def _predict_status(
         self,
-        criteria: Dict[str, CriterionResult],
+        criteria: dict[str, CriterionResult],
         passed_count: int,
         hard_pass: bool,
-        score_context: Dict[str, object],
+        score_context: dict[str, object],
     ) -> str:
         """가중치 점수와 하한 게이트를 사용해 최종 상태를 예측한다."""
         criterion_scores = score_context.get("criterion_scores", {})
@@ -472,13 +470,13 @@ class WeightedQualityEvaluator(BaseToolQualityEvaluator):
 
     def _build_summary(
         self,
-        criteria: Dict[str, CriterionResult],
+        criteria: dict[str, CriterionResult],
         predicted_status: str,
         final_status: str,
         passed_count: int,
         review_required: bool,
-        review_reasons: List[str],
-        score_context: Dict[str, object],
+        review_reasons: list[str],
+        score_context: dict[str, object],
     ) -> str:
         """총점을 포함한 weighted 평가 요약 문자열을 생성한다."""
         passed_names = [name for name, result in criteria.items() if result.passed]

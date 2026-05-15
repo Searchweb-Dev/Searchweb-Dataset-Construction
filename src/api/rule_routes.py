@@ -118,7 +118,7 @@ def classify(
         pipeline_result = run_quality_pipeline(url)
     except Exception as exc:
         logger.exception("[rule/classify] 파이프라인 실행 실패: %s", url)
-        raise HTTPException(status_code=500, detail=f"분류 실패: {exc}") from exc
+        raise HTTPException(status_code=500, detail="분류 중 오류가 발생했습니다.") from exc
 
     # DB 저장 — RuleAnalyzer를 명시적으로 주입해 CLASSIFIER_MODE와 무관하게 규칙기반으로 저장
     try:
@@ -126,7 +126,7 @@ def classify(
         saved = detector.detect_and_save(url)
     except Exception as exc:
         logger.exception("[rule/classify] DB 저장 실패: %s", url)
-        raise HTTPException(status_code=500, detail=f"저장 실패: {exc}") from exc
+        raise HTTPException(status_code=500, detail="저장 중 오류가 발생했습니다.") from exc
 
     if saved is None:
         logger.error("[rule/classify] 저장 결과가 None: %s", url)

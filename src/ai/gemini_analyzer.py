@@ -1,8 +1,9 @@
 """Gemini API를 사용한 웹사이트 분석기 (url_context + Structured Output 방식)."""
 
+import json
 import logging
 import time
-from typing import Any, Optional
+from typing import Any
 
 from google import genai
 from google.genai import types
@@ -24,6 +25,13 @@ from src.core.exceptions import (
 from src.ai.prompts import SYSTEM_PROMPT, ANALYSIS_PROMPT, BATCH_ANALYSIS_PROMPT
 
 logger = logging.getLogger(__name__)
+
+_WEIGHT_UTILITY = 0.4
+_WEIGHT_TRUST = 0.3
+_WEIGHT_ORIGINALITY = 0.3
+_HARD_PASS_CONFIDENCE_THRESHOLD = 0.8
+_REVIEW_CONFIDENCE_THRESHOLD = 0.7
+_REVIEW_SCORE_THRESHOLD = 60.0
 
 # Structured Output 응답 스키마 — 프롬프트 예시 JSON 대체
 _SITE_SCHEMA = {
@@ -95,13 +103,13 @@ def _raise_typed_error(exc: BaseException, url: str) -> None:
     if kind in _KIND_TO_EXC:
         exc_cls, msg = _KIND_TO_EXC[kind]
         raise exc_cls(msg) from exc
-    raise
+    raise exc
 
 
 class GeminiAnalyzer:
     """Gemini url_context 툴 + Structured Output을 사용한 웹사이트 분석기."""
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str | None = None):
         """Gemini 클라이언트 초기화."""
         self.client = genai.Client(api_key=api_key)
         self.model = get_gemini_model()
@@ -151,7 +159,7 @@ class GeminiAnalyzer:
 
         logger.info("[Gemini] 배치 분석 시작: %d개 URL %s", len(urls), urls)
         start_time = time.time()
-        url_list = "\n".join(f"{i+1}. {url}" for i, url in enumerate(urls))
+        url_list = "\n".join(f"{i}. {url}" for i, url in enumerate(urls, start=1))
         prompt = BATCH_ANALYSIS_PROMPT.format(url_list=url_list)
 
         response = self._generate_batch(prompt)
@@ -210,7 +218,6 @@ class GeminiAnalyzer:
 
     def _parse_single(self, response: Any) -> dict[str, Any]:
         """단건 응답 파싱 — Structured Output이므로 직접 파싱."""
-        import json
         try:
             if response.text:
                 return json.loads(response.text)
@@ -221,7 +228,6 @@ class GeminiAnalyzer:
 
     def _parse_batch(self, response: Any, urls: list[str]) -> list[dict[str, Any]]:
         """배치 응답 파싱. 길이 불일치 또는 항목 오류 시 기본값으로 보완."""
-        import json
         results: list[dict[str, Any]] = []
         try:
             if response.text:
@@ -273,15 +279,17 @@ class GeminiAnalyzer:
             utility = float(scores.get("utility") or 0)
             trust = float(scores.get("trust") or 0)
             originality = float(scores.get("originality") or 0)
-            total_score = round((utility * 0.4 + trust * 0.3 + originality * 0.3) * 10, 2)
+            total_score = round(
+                (utility * _WEIGHT_UTILITY + trust * _WEIGHT_TRUST + originality * _WEIGHT_ORIGINALITY) * 10, 2
+            )
         except (TypeError, ValueError):
             total_score = 0.0
 
         confidence = float(result.get("confidence") or 0)
         is_ai_tool = bool(result.get("is_ai_tool"))
 
-        hard_pass = is_ai_tool and confidence >= 0.8
-        review_required = confidence < 0.7 or (is_ai_tool and total_score < 60.0)
+        hard_pass = is_ai_tool and confidence >= _HARD_PASS_CONFIDENCE_THRESHOLD
+        review_required = confidence < _REVIEW_CONFIDENCE_THRESHOLD or (is_ai_tool and total_score < _REVIEW_SCORE_THRESHOLD)
 
         return {
             "total_score": total_score,

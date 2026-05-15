@@ -1,6 +1,6 @@
 """규칙기반 분류기 요청/응답 스키마."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, HttpUrl
 
@@ -18,23 +18,23 @@ class CriterionResponse(BaseModel):
     passed: bool
     reason: str
     confidence: float
-    evidence: List[Dict[str, str]] = []
+    evidence: list[dict[str, str]] = []
 
 
 class RuleClassifyResponse(BaseModel):
     """규칙기반 분류 결과 스키마."""
 
-    site_id: Optional[int] = None
+    site_id: int | None = None
     input_url: str
     normalized_url: str
     predicted_status: str
     final_status: str
     passed_count: int
     hard_pass: bool
-    total_score: Optional[float] = None
-    score_breakdown: Optional[Dict[str, float]] = None
+    total_score: float | None = None
+    score_breakdown: dict[str, float] | None = None
     review_required: bool
-    review_reasons: List[str]
-    criteria: Dict[str, CriterionResponse]
+    review_reasons: list[str]
+    criteria: dict[str, CriterionResponse] = {}
     summary: str
-    extracted: Dict[str, Any] = {}
+    extracted: dict[str, Any] = {}

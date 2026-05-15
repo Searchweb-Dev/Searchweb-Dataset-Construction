@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Tuple
 
 
 @dataclass
@@ -41,7 +40,7 @@ class EvalConfig:
     license_counts_as_pricing_for_oss: bool = True       # OSS 라이선스를 pricing 근거로 인정할지 여부
     curated_requires_no_review: bool = True              # curated 확정 시 review_required=False 강제 여부
     enable_llm_for_clear_desc: bool = False              # clear_function_desc LLM 보조 판정 사용 여부
-    hard_criteria: Tuple[str, str] = (
+    hard_criteria: tuple[str, str] = (
         "usable_now",
         "clear_function_desc",
     )                                                    # 반드시 통과해야 하는 기준
@@ -80,7 +79,7 @@ class EvalConfig:
 
     min_text_len_for_static_success: int = 700           # requests 결과 최소 본문 길이 기준
     min_links_for_static_success: int = 8                # requests 결과 최소 링크 수 기준
-    fallback_probe_paths: Tuple[str, ...] = (
+    fallback_probe_paths: tuple[str, ...] = (
         "/pricing",
         "/plans",
         "/docs",

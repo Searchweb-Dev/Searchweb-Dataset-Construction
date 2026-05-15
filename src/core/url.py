@@ -2,6 +2,17 @@
 
 from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
 
+_VIDEO_HOSTS: tuple[str, ...] = (
+    "youtube.com", "youtu.be", "vimeo.com", "dailymotion.com", "twitch.tv",
+)
+_DOC_EXTENSIONS: tuple[str, ...] = (
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+    ".txt", ".md", ".csv", ".json", ".xml",
+)
+_IMG_EXTENSIONS: tuple[str, ...] = (
+    ".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp", ".ico",
+)
+
 
 def normalize_url(url: str) -> str:
     """URL을 정규화하여 canonical URL 생성.
@@ -79,19 +90,15 @@ def classify_url_type(url: str) -> str:
         path = parsed.path.lower()
 
         # 비디오 호스트
-        if any(host in parsed.netloc for host in ["youtube.com", "youtu.be", "vimeo.com",
-                                                     "dailymotion.com", "twitch.tv"]):
+        if any(host in parsed.netloc for host in _VIDEO_HOSTS):
             return "video"
 
         # 문서 확장자
-        doc_exts = [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-                   ".txt", ".md", ".csv", ".json", ".xml"]
-        if any(path.endswith(ext) for ext in doc_exts):
+        if any(path.endswith(ext) for ext in _DOC_EXTENSIONS):
             return "document"
 
         # 이미지 확장자
-        img_exts = [".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp", ".ico"]
-        if any(path.endswith(ext) for ext in img_exts):
+        if any(path.endswith(ext) for ext in _IMG_EXTENSIONS):
             return "image"
 
         return "webpage"

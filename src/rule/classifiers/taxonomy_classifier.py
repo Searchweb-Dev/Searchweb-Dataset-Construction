@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import re
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from src.rule.keywords import (
     DEFAULT_META_BY_PRIMARY,
@@ -28,10 +28,10 @@ class TaxonomyClassifierMixin:
     def _classify_taxonomy(
         self,
         homepage: FetchResult,
-        all_pages: Dict[str, FetchResult],
-        extracted: Dict[str, object],
-        text_cache: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, object]:
+        all_pages: dict[str, FetchResult],
+        extracted: dict[str, object],
+        text_cache: dict[str, str] | None = None,
+    ) -> dict[str, object]:
         """본문/메타/링크 텍스트 기반으로 taxonomy(카테고리/태그)를 분류한다."""
         usable_pages = [p for p in all_pages.values() if p.ok]
         if text_cache:
@@ -67,7 +67,7 @@ class TaxonomyClassifierMixin:
                 "taxonomy_skipped": True,
             }
 
-        category_scores: Dict[str, float] = {}
+        category_scores: dict[str, float] = {}
         for category, keywords in PRIMARY_CATEGORY_KEYWORDS.items():
             body_hits = keyword_hit_count(corpus, keywords, normalized=True)
             header_hits = keyword_hit_count(header_blob, keywords, normalized=True)
@@ -92,7 +92,7 @@ class TaxonomyClassifierMixin:
             logger.info("[%s] Taxonomy 분류 성공: %s (score=%.1f, conf=%.2f)",
                         domain, primary_category, top_score, primary_confidence)
 
-        subtask_scores: Dict[str, int] = {}
+        subtask_scores: dict[str, int] = {}
         for subtask, keywords in SUBTASK_KEYWORDS_BY_PRIMARY.get(primary_category, {}).items():
             hits = keyword_hit_count(combined_blob, keywords, normalized=True)
             if hits > 0:
@@ -103,7 +103,7 @@ class TaxonomyClassifierMixin:
             for name, _ in sorted(subtask_scores.items(), key=lambda x: x[1], reverse=True)[:max_sub_tasks]
         ]
 
-        meta_scores: Dict[str, int] = {}
+        meta_scores: dict[str, int] = {}
         for meta, keywords in META_CATEGORY_KEYWORDS.items():
             hits = keyword_hit_count(combined_blob, keywords, normalized=True)
             if hits > 0:
@@ -141,7 +141,7 @@ class TaxonomyClassifierMixin:
             "taxonomy_skipped": False,
         }
 
-    def _infer_pricing_model(self, text_blob: str, extracted: Dict[str, object]) -> str:
+    def _infer_pricing_model(self, text_blob: str, extracted: dict[str, object]) -> str:
         """텍스트 신호와 추출 결과를 바탕으로 pricing model 타입을 추정한다."""
         if bool(extracted.get("license_detected")):
             return "open_source_license"
@@ -176,7 +176,7 @@ class TaxonomyClassifierMixin:
                 count += 1
         return count
 
-    def _infer_platforms(self, text_blob: str, has_api: bool, pages: List[FetchResult]) -> List[str]:
+    def _infer_platforms(self, text_blob: str, has_api: bool, pages: list[FetchResult]) -> list[str]:
         """플랫폼 키워드/URL 신호를 결합해 지원 플랫폼 목록을 추정한다."""
         normalized_blob = lower(text_blob)
         found: set = set()

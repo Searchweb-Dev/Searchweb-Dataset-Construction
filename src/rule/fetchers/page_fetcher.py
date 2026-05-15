@@ -8,7 +8,7 @@ import threading
 import re
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 from urllib.parse import urljoin
 
 import requests
@@ -36,7 +36,7 @@ class PageFetcher:
         """네트워크 세션과 브라우저 수집 옵션을 초기화한다."""
         self.config = config
         self.playwright_enabled = bool(self.config.use_playwright and sync_playwright is not None)
-        self.playwright_disabled_reason: Optional[str] = None
+        self.playwright_disabled_reason: str | None = None
         if self.config.use_playwright and sync_playwright is None:
             self.playwright_disabled_reason = (
                 "playwright_unavailable: playwright 패키지가 설치되지 않았습니다. "
@@ -44,9 +44,9 @@ class PageFetcher:
             )
         self._thread_local = threading.local()
         self._playwright_resources_lock = threading.Lock()
-        self._playwright_resources: List[Dict[str, Any]] = []
+        self._playwright_resources: list[dict[str, Any]] = []
         self._sessions_lock = threading.Lock()
-        self._sessions: List[requests.Session] = []
+        self._sessions: list[requests.Session] = []
 
     def fetch(self, url: str, lightweight: bool = False) -> FetchResult:
         """URL을 수집하고 requests/playwright 중 더 나은 결과를 반환한다."""
@@ -74,14 +74,14 @@ class PageFetcher:
 
         return req_result
 
-    def fetch_many(self, urls: List[str], max_workers: int = 4, lightweight: bool = False) -> Dict[str, FetchResult]:
+    def fetch_many(self, urls: list[str], max_workers: int = 4, lightweight: bool = False) -> dict[str, FetchResult]:
         """여러 URL을 병렬로 수집한다."""
         if not urls:
             return {}
         if max_workers <= 1 or len(urls) == 1:
             return {u: self.fetch(u, lightweight=lightweight) for u in urls}
 
-        results: Dict[str, FetchResult] = {}
+        results: dict[str, FetchResult] = {}
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_url = {executor.submit(self.fetch, u, lightweight): u for u in urls}
             for future in as_completed(future_to_url):
@@ -314,13 +314,13 @@ class PageFetcher:
                 except Exception:
                     pass
 
-    def _register_playwright_resource(self, resource: Dict[str, Any]) -> None:
+    def _register_playwright_resource(self, resource: dict[str, Any]) -> None:
         """생성된 Playwright 리소스를 종료 정리를 위해 등록한다."""
         with self._playwright_resources_lock:
             if resource not in self._playwright_resources:
                 self._playwright_resources.append(resource)
 
-    def _get_or_create_playwright_resource(self) -> Optional[Dict[str, Any]]:
+    def _get_or_create_playwright_resource(self) -> dict[str, Any] | None:
         """현재 스레드의 Playwright 리소스를 반환하고 없으면 생성한다."""
         if not self.playwright_enabled:
             return None
@@ -373,7 +373,7 @@ class PageFetcher:
             self._close_playwright_resources()
             return None
 
-    def _shutdown_playwright_resource(self, resource: Dict[str, Any]) -> None:
+    def _shutdown_playwright_resource(self, resource: dict[str, Any]) -> None:
         """단일 Playwright 리소스의 context/browser/manager를 순서대로 닫는다."""
         try:
             context = resource.get("context")
@@ -398,7 +398,7 @@ class PageFetcher:
         resource["pw"] = None
         resource["manager"] = None
 
-    def _close_playwright_resource(self, resource: Dict[str, Any]) -> None:
+    def _close_playwright_resource(self, resource: dict[str, Any]) -> None:
         """단일 Playwright 리소스를 등록 목록/스레드 로컬에서 제거하고 닫는다."""
         with self._playwright_resources_lock:
             self._playwright_resources = [r for r in self._playwright_resources if r is not resource]
@@ -434,7 +434,7 @@ class PageFetcher:
         except Exception:
             pass
 
-    def _is_playwright_unavailable_error(self, error: Optional[str]) -> bool:
+    def _is_playwright_unavailable_error(self, error: str | None) -> bool:
         """playwright 실행 불가 유형의 에러 문자열인지 판정한다."""
         if not error:
             return False
@@ -551,7 +551,7 @@ class PageFetcher:
         status_code: int,
         html: str,
         ok: bool,
-        error: Optional[str],
+        error: str | None,
         fetched_by: str,
     ) -> FetchResult:
         """HTML을 파싱해 제목/메타/본문/링크를 포함한 FetchResult를 생성한다."""
@@ -569,7 +569,7 @@ class PageFetcher:
         if len(body_text) > self.config.max_body_text_chars:
             body_text = body_text[: self.config.max_body_text_chars]
 
-        links: List[Tuple[str, str]] = []
+        links: list[tuple[str, str]] = []
         max_links = max(1, self.config.max_links_per_page)
         seen = set()
         for a in soup.find_all("a", href=True, limit=max_links * 3):

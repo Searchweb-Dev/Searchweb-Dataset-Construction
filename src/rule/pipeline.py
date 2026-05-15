@@ -8,23 +8,23 @@ CLI 코드, registry I/O, 배치 처리 코드는 포함하지 않는다.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
-from src.rule.config import EvalConfig
+from src.rule.config import EvalConfig, get_rule_config
 from src.rule.classifiers.criteria_evaluator import WeightedQualityEvaluator
 from src.rule.fetchers.page_fetcher import PageFetcher
 from src.rule.models import DummyLLM, EvaluationResult
+from src.rule.utils import lower, normalize_url
 
 
-PipelineContext = Dict[str, Any]
+PipelineContext = dict[str, Any]
 PipelineStep = Callable[[Any, PipelineContext], None]
 
 
-def _build_shared_text_cache(all_pages: Dict[str, Any]) -> Dict[str, str]:
+def _build_shared_text_cache(all_pages: dict[str, Any]) -> dict[str, str]:
     """ai_scope/taxonomy가 공통으로 사용하는 텍스트 블롭 캐시를 생성한다."""
-    from src.rule.utils import lower
 
     usable_pages = [p for p in all_pages.values() if getattr(p, "ok", False)]
     page_blobs = [" ".join([p.final_url, p.title, p.meta_description, p.text[:5000]]) for p in usable_pages]
@@ -83,7 +83,7 @@ def step_fetch_and_collect_pages(evaluator: Any, ctx: PipelineContext) -> None:
             for u in candidate_urls
         }
 
-    all_pages: Dict[str, Any] = {}
+    all_pages: dict[str, Any] = {}
     all_pages[homepage.final_url] = homepage
     for result in fetched_candidates.values():
         all_pages[result.final_url] = result
@@ -212,7 +212,7 @@ def step_build_summary(evaluator: Any, ctx: PipelineContext) -> None:
     ctx["summary"] = summary
 
 
-DEFAULT_PIPELINE_STEPS: List[PipelineStep] = [
+DEFAULT_PIPELINE_STEPS: list[PipelineStep] = [
     step_fetch_and_collect_pages,
     step_extract_signals,
     step_assess_ai_scope,
@@ -226,7 +226,7 @@ DEFAULT_PIPELINE_STEPS: List[PipelineStep] = [
 
 def run_quality_pipeline(
     url: str,
-    config: Optional[EvalConfig] = None,
+    config: EvalConfig | None = None,
 ) -> EvaluationResult:
     """단일 URL에 대해 전체 품질 평가 파이프라인을 실행하고 EvaluationResult를 반환한다.
 
@@ -240,8 +240,6 @@ def run_quality_pipeline(
     Raises:
         Exception: 파이프라인 실행 중 발생한 예외는 그대로 전파한다.
     """
-    from src.rule.config import get_rule_config
-
     runtime_config = config or get_rule_config()
     fetcher = PageFetcher(runtime_config)
     evaluator = WeightedQualityEvaluator(fetcher=fetcher, config=runtime_config, llm=None)

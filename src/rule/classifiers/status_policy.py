@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
 
 from src.rule.models import CriterionResult, FetchResult
 
@@ -12,16 +11,16 @@ from src.rule.models import CriterionResult, FetchResult
 class StatusPolicyMixin:
     """상태 예측, 리뷰 게이트, 요약 생성 정책을 제공하는 믹스인."""
 
-    def _build_score_context(self, criteria: Dict[str, CriterionResult]) -> Dict[str, object]:
+    def _build_score_context(self, criteria: dict[str, CriterionResult]) -> dict[str, object]:
         """점수기반 평가기에서 override 가능한 점수 컨텍스트를 생성한다."""
         return {}
 
     def _predict_status(
         self,
-        criteria: Dict[str, CriterionResult],
+        criteria: dict[str, CriterionResult],
         passed_count: int,
         hard_pass: bool,
-        score_context: Dict[str, object],
+        score_context: dict[str, object],
     ) -> str:
         """규칙 기반 기본 상태(curated/incubating/rejected)를 예측한다."""
         if not hard_pass:
@@ -34,16 +33,16 @@ class StatusPolicyMixin:
 
     def _review_gate(
         self,
-        criteria: Dict[str, CriterionResult],
+        criteria: dict[str, CriterionResult],
         homepage: FetchResult,
-        extracted: Dict[str, object],
+        extracted: dict[str, object],
         predicted_status: str,
-    ) -> Tuple[bool, List[str]]:
+    ) -> tuple[bool, list[str]]:
         """수동 검토 필요 여부와 사유 목록을 결정한다."""
         if any(result.reason.startswith("AI 사이트 판별 게이트에서 제외됨") for result in criteria.values()):
             return (False, [])
 
-        reasons: List[str] = []
+        reasons: list[str] = []
         ai_scope = extracted.get("ai_scope", {})
         if isinstance(ai_scope, dict) and str(ai_scope.get("scope_decision", "")).lower() == "uncertain":
             reasons.append("AI 사이트 판정이 경계 구간(uncertain)으로 수동 확인이 필요함")
@@ -73,13 +72,13 @@ class StatusPolicyMixin:
 
     def _build_summary(
         self,
-        criteria: Dict[str, CriterionResult],
+        criteria: dict[str, CriterionResult],
         predicted_status: str,
         final_status: str,
         passed_count: int,
         review_required: bool,
-        review_reasons: List[str],
-        score_context: Dict[str, object],
+        review_reasons: list[str],
+        score_context: dict[str, object],
     ) -> str:
         """평가 결과를 사람이 읽기 쉬운 요약 문자열로 생성한다."""
         passed_names = [name for name, result in criteria.items() if result.passed]

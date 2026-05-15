@@ -7,7 +7,7 @@ EvaluationResult를 detector.py가 기대하는 분석 dict로 변환하여 반�
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 from src.rule.models import CriterionResult, EvaluationResult
@@ -16,7 +16,7 @@ from src.rule.pipeline import run_quality_pipeline
 logger = logging.getLogger(__name__)
 
 # 카테고리 매핑 테이블: primary_category → (level_1, level_2)
-_CATEGORY_MAP: Dict[str, tuple[str, str]] = {
+_CATEGORY_MAP: dict[str, tuple[str, str]] = {
     "Writing & Docs": ("text", "text-generation"),
     "Coding": ("code", "code-generation"),
     "Research": ("text", "research-assistant"),
@@ -48,7 +48,7 @@ def _clamp_score(value: int, min_val: int = 1, max_val: int = 10) -> int:
     return max(min_val, min(max_val, value))
 
 
-def _map_to_analysis_dict(result: EvaluationResult, input_url: str) -> Dict[str, Any]:
+def _map_to_analysis_dict(result: EvaluationResult, input_url: str) -> dict[str, Any]:
     """EvaluationResult를 detector.py가 기대하는 분석 dict로 변환한다.
 
     Args:
@@ -86,7 +86,7 @@ def _map_to_analysis_dict(result: EvaluationResult, input_url: str) -> Dict[str,
         confidence = 0.5
     confidence = max(0.0, min(1.0, confidence))
 
-    categories: List[Dict[str, Any]] = []
+    categories: list[dict[str, Any]] = []
     taxonomy_skipped = bool(taxonomy.get("taxonomy_skipped")) if isinstance(taxonomy, dict) else True
     if not taxonomy_skipped and isinstance(taxonomy, dict):
         primary_category = str(taxonomy.get("primary_category", "")).strip()
@@ -101,7 +101,7 @@ def _map_to_analysis_dict(result: EvaluationResult, input_url: str) -> Dict[str,
         ]
 
     sub_tasks = taxonomy.get("sub_tasks", []) if isinstance(taxonomy, dict) else []
-    tags: List[str] = [str(t) for t in sub_tasks[:3]] if isinstance(sub_tasks, list) else []
+    tags: list[str] = [str(t) for t in sub_tasks[:3]] if isinstance(sub_tasks, list) else []
 
     total_score = result.total_score
     if total_score is not None:
@@ -114,7 +114,7 @@ def _map_to_analysis_dict(result: EvaluationResult, input_url: str) -> Dict[str,
     score_utility = _clamp_score(utility_raw)
 
     criteria = result.criteria if isinstance(result.criteria, dict) else {}
-    privacy_criterion: Optional[CriterionResult] = criteria.get("has_privacy_or_data_policy")
+    privacy_criterion: CriterionResult | None = criteria.get("has_privacy_or_data_policy")
     if privacy_criterion is not None:
         try:
             trust_raw = round(float(privacy_criterion.confidence) * 10)
@@ -149,7 +149,7 @@ class RuleAnalyzer:
     detector.py의 get_analyzer()에서 반환되며, LLM 분석기와 동일한 인터페이스를 구현한다.
     """
 
-    def analyze_website(self, url: str) -> Dict[str, Any]:
+    def analyze_website(self, url: str) -> dict[str, Any]:
         """단일 URL을 규칙기반 파이프라인으로 분석하고 분석 결과 dict를 반환한다.
 
         Args:

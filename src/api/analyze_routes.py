@@ -25,6 +25,50 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _try_cache_hit(
+    url: str,
+    existing_map: dict,
+    db: Session,
+    force_reanalyze: bool,
+) -> AnalysisJobResponse | None:
+    """캐시 히트 시 AnalysisJobResponse를 반환하고, 아니면 None을 반환한다."""
+    if force_reanalyze:
+        return None
+
+    existing = existing_map.get(url)
+    if existing is None:
+        return None
+
+    # LLM으로 분석된 URL만 캐시 히트 — rule 분석 결과는 LLM으로 재분석
+    if existing.analyzer not in (None, "rule"):
+        job = (
+            db.query(AnalysisJob)
+            .filter(
+                AnalysisJob.site_id == existing.site_id,
+                AnalysisJob.status == JobStatus.SUCCESS,
+            )
+            .order_by(AnalysisJob.completed_at.desc())
+            .first()
+        )
+        if job:
+            logger.info("[analyze] 캐시 히트 (analyzer=%s): %s", existing.analyzer, url)
+            return AnalysisJobResponse(
+                job_id=job.job_id,
+                url=job.url,
+                status=job.status,
+                created_at=job.created_at,
+                started_at=job.started_at,
+                completed_at=job.completed_at,
+                retry_count=job.retry_count,
+                error_message=job.error_message,
+            )
+
+    if existing.analyzer in (None, "rule"):
+        logger.info("[analyze] rule 분석 결과 → LLM 재분석 대상: %s", url)
+
+    return None
+
+
 @router.post("", status_code=202, response_model=list[AnalysisJobResponse])
 def analyze(
     request: AnalysisJobRequest,
@@ -60,35 +104,18 @@ def analyze(
     pending_job_ids: list[str] = []
     pending_urls: list[str] = []
 
+    existing_map: dict[str, AISite] = {}
+    if not request.force_reanalyze:
+        existing_map = {
+            s.url: s
+            for s in db.query(AISite).filter(AISite.url.in_(input_urls)).all()
+        }
+
     for url in input_urls:
-        if not request.force_reanalyze:
-            existing = db.query(AISite).filter(AISite.url == url).first()
-            # LLM으로 분석된 URL만 캐시 히트 — rule 분석 결과는 LLM으로 재분석
-            if existing and existing.analyzer not in (None, "rule"):
-                job = (
-                    db.query(AnalysisJob)
-                    .filter(
-                        AnalysisJob.site_id == existing.site_id,
-                        AnalysisJob.status == JobStatus.SUCCESS,
-                    )
-                    .order_by(AnalysisJob.completed_at.desc())
-                    .first()
-                )
-                if job:
-                    logger.info("[analyze] 캐시 히트 (analyzer=%s): %s", existing.analyzer, url)
-                    responses.append(AnalysisJobResponse(
-                        job_id=job.job_id,
-                        url=job.url,
-                        status=job.status,
-                        created_at=job.created_at,
-                        started_at=job.started_at,
-                        completed_at=job.completed_at,
-                        retry_count=job.retry_count,
-                        error_message=job.error_message,
-                    ))
-                    continue
-            if existing and existing.analyzer in (None, "rule"):
-                logger.info("[analyze] rule 분석 결과 → LLM 재분석 대상: %s", url)
+        cached_response = _try_cache_hit(url, existing_map, db, request.force_reanalyze)
+        if cached_response is not None:
+            responses.append(cached_response)
+            continue
 
         job = AnalysisJob(
             job_id=uuid4(),
@@ -162,7 +189,7 @@ async def analyze_batch_upload(
     return BatchAnalysisResponse(
         total=len(urls),
         accepted=len(urls),
-        message=f"{len(urls)}건 분류을 백그라운드에서 시작했습니다. 완료 후 data/ 디렉토리에 결과 파일이 생성됩니다.",
+        message=f"{len(urls)}건 분류를 백그라운드에서 시작했습니다. 완료 후 data/ 디렉토리에 결과 파일이 생성됩니다.",
     )
 
 
@@ -201,5 +228,5 @@ def analyze_batch_file(
     return BatchAnalysisResponse(
         total=len(urls),
         accepted=len(urls),
-        message=f"{len(urls)}건 분류을 백그라운드에서 시작했습니다. 완료 후 data/ 디렉토리에 결과 파일이 생성됩니다.",
+        message=f"{len(urls)}건 분류를 백그라운드에서 시작했습니다. 완료 후 data/ 디렉토리에 결과 파일이 생성됩니다.",
     )

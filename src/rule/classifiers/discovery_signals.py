@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Optional
 from urllib.parse import urljoin, urlparse
 
 from src.rule.config import EvalConfig
@@ -30,9 +29,9 @@ class DiscoverySignalMixin:
     config: EvalConfig
     fetcher: object
 
-    def _collect_candidate_urls(self, homepage_url: str, homepage: FetchResult) -> List[str]:
+    def _collect_candidate_urls(self, homepage_url: str, homepage: FetchResult) -> list[str]:
         """홈페이지 링크/fallback 규칙으로 후속 탐색 URL 후보를 구성한다."""
-        kinds: Dict[str, List[str]] = {"pricing": [], "docs": [], "policy": [], "product": [], "probe": []}
+        kinds: dict[str, list[str]] = {"pricing": [], "docs": [], "policy": [], "product": [], "probe": []}
         seen_in_kind = {k: set() for k in kinds.keys()}
 
         def add_url(kind: str, u: str) -> None:
@@ -87,10 +86,10 @@ class DiscoverySignalMixin:
             for path in self.config.fallback_probe_paths:
                 add_url("probe", urljoin(homepage_url, path))
 
-        ordered: List[str] = []
+        ordered: list[str] = []
         seen_global: set = set()
 
-        def merge(urls: List[str], limit: Optional[int] = None) -> None:
+        def merge(urls: list[str], limit: int | None = None) -> None:
             """우선순위 순서로 URL을 합치면서 전역 중복과 최대 개수를 제어한다."""
             subset = urls if limit is None else urls[:limit]
             for u in subset:
@@ -109,9 +108,9 @@ class DiscoverySignalMixin:
         merge(kinds["probe"], None)
         return ordered[: self.config.max_total_candidate_pages]
 
-    def _extract_structured_signals(self, homepage: FetchResult, pages: List[FetchResult]) -> Dict[str, object]:
+    def _extract_structured_signals(self, homepage: FetchResult, pages: list[FetchResult]) -> dict[str, object]:
         """수집된 페이지들에서 pricing/docs/policy 등 구조화 신호를 추출한다."""
-        page_map: Dict[str, List[str]] = {"pricing_pages": [], "docs_pages": [], "policy_pages": [], "product_pages": []}
+        page_map: dict[str, list[str]] = {"pricing_pages": [], "docs_pages": [], "policy_pages": [], "product_pages": []}
         faq_only_docs = False
         contact_sales_only = False
         license_detected = False

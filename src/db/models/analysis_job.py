@@ -2,8 +2,7 @@
 
 import uuid
 
-from sqlalchemy import Column, BigInteger, String, Text, Integer, DateTime, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, BigInteger, String, Text, Integer, DateTime, ForeignKey, Uuid
 
 from .base import BaseModel
 
@@ -13,7 +12,7 @@ class AnalysisJob(BaseModel):
 
     __tablename__ = "analysis_job"
 
-    job_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
+    job_id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4,
                     comment="작업 고유 식별자 (UUID v4)")
     site_id = Column(BigInteger, ForeignKey("ai_site.site_id"), nullable=True, index=True,
                      comment="분석 완료 후 연결된 사이트 ID (ai_site.site_id 참조)")
