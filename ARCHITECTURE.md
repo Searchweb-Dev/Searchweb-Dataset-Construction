@@ -179,23 +179,7 @@ Gemini가 자동으로:
 
 **구현:**
 
-```python
-from google import genai
-from google.genai import types
-
-client = genai.Client(api_key=api_key)
-
-response = client.models.generate_content(
-    model="gemini-3.1-flash-lite",
-    contents=f"다음 URL을 분석하세요: {url}",
-    config=types.GenerateContentConfig(
-        system_instruction=SYSTEM_PROMPT,
-        tools=[types.Tool(url_context=types.UrlContext())],
-        response_mime_type="application/json",
-        max_output_tokens=2048,
-    ),
-)
-```
+`src/ai/gemini_analyzer.py` 참조
 
 **장점:**
 
@@ -207,7 +191,7 @@ response = client.models.generate_content(
 **Playwright 방식 보존:**
 
 로컬 브라우저 렌더링이 필요한 경우(SPA 완전 렌더링, 스크린샷 시각 분석 등)를 위해
-기존 Playwright 로직은 `src/ai/_playwright_renderer.py`에 보존되어 있다.
+기존 Playwright 로직은 `src/ai/_archive/_playwright_renderer.py`에 보존되어 있다.
 복원 방법은 해당 파일 상단 주석 참조.
 
 ---
@@ -265,12 +249,12 @@ EvaluationResult → 분석 dict (RuleAnalyzer._map_to_analysis_dict)
 
 ## Processing Pipeline
 
-### LLM 분석 (단건: analyze_website)
+### LLM 분석 (단건: analyze_url)
 
 ```
 Queue: analyze
   ↓
-Celery Task: analyze_website(job_id, url)
+Celery Task: analyze_url(job_id, url)
   ├─ 1. Job 상태 업데이트: pending → processing (started_at 기록)
   ├─ 2. DB에서 기존 분석 결과 확인
   │  ├─ 캐시 히트 (analyzer != "rule" 인 LLM 결과 존재)
@@ -289,38 +273,40 @@ Celery Task: analyze_website(job_id, url)
 
 Task 설정:
   - max_retries: 3
-  - time_limit: 300s (hard)
+  - time_limit: 300s (hard limit)
   - soft_time_limit: 240s
   - Retry 간격: 60s × (시도차수) 지수 백오프
 ```
 
-### LLM 배치 분석 (1회 LLM 호출로 다중 URL: analyze_website_batch)
+### LLM 배치 분석 (ThreadPoolExecutor 병렬 단건: analyze_urls_batch)
 
 ```
 Queue: analyze
   ↓
-Celery Task: analyze_website_batch(job_ids[], urls[])
+Celery Task: analyze_urls_batch(job_ids[], urls[])
   ├─ 1. Job 상태 일괄 업데이트: pending → processing (started_at 기록)
-  ├─ 2. LLM 분석 모드 분기
-  │  ├─ 배치 분석 지원: analyzer.analyze_websites_batch(urls) 호출 (1회)
-  │  └─ 개별 분석만 지원: [analyzer.analyze_website(url) for url in urls] (순차 호출)
-  ├─ 3. 각 URL별 결과 검증 및 DB 저장
-  │  ├─ 검증 실패 → 에러 기록, failed 카운트 증가
-  │  └─ 검증 성공 → AISite/AICategory/AITag 저장, success 카운트 증가
+  ├─ 2. ThreadPoolExecutor로 병렬 단건 LLM 분석
+  │  ├─ 워커 수: BATCH_CONCURRENCY (기본값: 5)
+  │  ├─ 각 워커: 독립 DB 세션에서 URL 분석
+  │  ├─ Gemini API로 단건 호출 (배치 호출 아님)
+  │  └─ 완료: (url, job_id, result, error) 반환
+  ├─ 3. 병렬 결과 수집
+  │  ├─ 성공: success_map[job_id] = site_id
+  │  └─ 실패: failure_map[job_id] = error
   ├─ 4. 각 Job 상태 개별 업데이트 (success/failed)
   └─ 5. 요약 반환 {success, failed, total}
 
 Task 설정:
   - max_retries: 3
-  - time_limit: 600s (hard)
+  - time_limit: 600s (hard limit)
   - soft_time_limit: 540s
   - Retry 간격: 60s × (시도차수) 지수 백오프
 ```
 
-### 병렬 배치 분석 (ThreadPoolExecutor: analyze_ai_tools_batch)
+### 병렬 배치 분석 (ThreadPoolExecutor: analyze_urls_bulk)
 
 ```
-Background Task: analyze_ai_tools_batch(urls[], force_reanalyze)
+Background Task: analyze_urls_bulk(urls[], force_reanalyze, source_path=None)
   ├─ 1. 스킵 대상 사전 판별 (DB 스캔)
   │  ├─ 기존 분석이 성공 → 스킵
   │  └─ 기존 분석이 실패 또는 미분석 → pending 리스트에 추가
@@ -333,13 +319,13 @@ Background Task: analyze_ai_tools_batch(urls[], force_reanalyze)
   │  ├─ 성공: success_map[job_id] = site_id
   │  └─ 실패: failure_map[job_id] = error
   ├─ 5. Job 상태 일괄 업데이트 (success/failed)
-  ├─ 6. 전체 결과를 파일 하나에 저장 (write_batch)
+  ├─ 6. 전체 결과를 파일 하나에 저장 (write_batch, source_path 기준)
   └─ 7. 요약 반환 {analyzed, skipped, failed, output_path}
 
 Task 설정:
   - autoretry_for: () (자동 재시도 없음)
   - max_retries: 0 (수동 재시도만)
-  - time_limit: 3600s (hard, 1시간)
+  - time_limit: 3600s (hard limit, 1시간)
   - soft_time_limit: 3300s (55분)
 
 병렬 처리:
@@ -347,6 +333,7 @@ Task 설정:
   - 각 워커: ThreadPoolExecutor 풀에서 독립 스레드 실행
   - DB 쓰기: 각 워커의 독립 DB 세션에서 처리
   - 결과 파일: 병렬 완료 후 단일 세션으로 한 번만 쓰기
+  - source_path: 출력 파일명 결정 기준 (기본: fixed filename)
 ```
 
 ### 규칙기반 분석 (CLASSIFIER_MODE=rule)
@@ -371,73 +358,6 @@ RuleAnalyzer.analyze_website(url)
 
 ---
 
-# Recommended Tech Stack
-
-| Layer | Technology | 설명 |
-|---|---|---|
-| API | FastAPI | 비동기 API 서버 |
-| Queue | Celery | 비동기 작업 큐 |
-| Broker | Redis | 작업 큐 브로커 |
-| LLM | Gemini API (url_context) | URL 직접 fetch + AI 사이트 분석 |
-| Validation | Pydantic | 결과 검증 및 정규화 |
-| Database | PostgreSQL | 결과 저장 |
-| ORM | SQLAlchemy | 데이터베이스 접근 |
-| Container | Docker | 배포 |
-
----
-
-## Architecture Diagram
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│                    Spring Backend                             │
-│                  (사용자 요청 처리)                            │
-└────────────────────┬─────────────────────────────────────────┘
-                     │ POST /analyze?url=...
-                     ▼
-┌──────────────────────────────────────────────────────────────┐
-│                   FastAPI Worker                              │
-│         ┌─────────────────────────────────────┐              │
-│         │  API Layer                          │              │
-│         │  - Request validation               │              │
-│         │  - Job creation                     │              │
-│         └─────────────────────────────────────┘              │
-└────────────────────┬─────────────────────────────────────────┘
-                     │ enqueue
-                     ▼
-┌──────────────────────────────────────────────────────────────┐
-│                  Redis Queue (Celery)                         │
-│            (비동기 작업 큐 및 상태 저장소)                      │
-└────────────────────┬─────────────────────────────────────────┘
-                     │
-                     ▼
-┌──────────────────────────────────────────────────────────────┐
-│              Celery Worker Process                            │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │   Gemini API (url_context 툴)                        │   │
-│  │  - URL 직접 fetch                                    │   │
-│  │  - AI 사이트 판별                                    │   │
-│  │  - 카테고리 분류                                     │   │
-│  │  - 점수 계산                                         │   │
-│  │  - 요약 생성                                         │   │
-│  └──────────────────────────────────────────────────────┘   │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │   Result Normalizer (Pydantic)                       │   │
-│  │  - JSON 검증                                         │   │
-│  │  - Schema 정규화                                     │   │
-│  └──────────────────────────────────────────────────────┘   │
-└────────────────────┬─────────────────────────────────────────┘
-                     │ 결과 저장
-                     ▼
-┌──────────────────────────────────────────────────────────────┐
-│              PostgreSQL Database                              │
-│  - AnalysisJob (작업 추적)                                   │
-│  - AISite (분석 결과)                                        │
-│  - AICategory / AITag (분류 및 태그)                         │
-└──────────────────────────────────────────────────────────────┘
-```
-
----
 
 # Directory Structure
 
@@ -459,7 +379,8 @@ sw-test/
 │   │   ├── gemini_analyzer.py       # Gemini url_context 분석기
 │   │   ├── detector.py              # AI 판별 및 DB 저장 로직
 │   │   ├── mcp_tools.py             # (stub) 렌더링 도구 진입점
-│   │   └── _playwright_renderer.py  # Playwright 렌더링 보존 (비활성)
+│   │   └── _archive/
+│   │       └── _playwright_renderer.py  # (보존) Playwright 렌더링 (비활성)
 │   ├── rule/                            # 규칙기반 분류기 (CLASSIFIER_MODE=rule)
 │   │   ├── __init__.py
 │   │   ├── analyzer.py                  # RuleAnalyzer 클래스 (analyze_website 메서드)
@@ -482,9 +403,9 @@ sw-test/
 │   │   ├── __init__.py
 │   │   ├── celery_app.py            # Celery 앱 초기화 (큐, 라우팅, 설정)
 │   │   └── analyze_task.py          # 3개 분석 태스크
-│   │       ├── analyze_website(job_id, url) — 단건 분석
-│   │       ├── analyze_website_batch(job_ids[], urls[]) — 배치 분석
-│   │       └── analyze_ai_tools_batch(urls[], force_reanalyze) — 병렬 분석
+│   │       ├── analyze_url(job_id, url) — 단건 분석
+│   │       ├── analyze_urls_batch(job_ids[], urls[]) — 배치 병렬 단건 분석
+│   │       └── analyze_urls_bulk(urls[], force_reanalyze, source_path=None) — 백그라운드 병렬 분석
 │   ├── db/
 │   │   ├── __init__.py
 │   │   ├── session.py               # SQLAlchemy 세션
@@ -501,13 +422,14 @@ sw-test/
 │   │   └── rule.py                  # 규칙기반 분류 스키마
 │   └── core/
 │       ├── __init__.py
-│       ├── config.py                # 환경 변수 설정
+│       ├── config.py                # 환경 변수 설정 (@lru_cache 적용)
 │       ├── enums.py                 # JobStatus 열거형
-│       ├── exceptions.py             # 도메인 예외
+│       ├── exceptions.py            # 도메인 예외 (세분화된 예외 계층)
+│       ├── error_policy.py          # LLM API 에러 유형 분류 및 처리 정책
 │       ├── url.py                   # URL 정규화 및 판별
 │       ├── util.py                  # 공통 유틸리티
-│       ├── batch_file.py            # 배치 파일 URL 추출
-│       └── result_writer.py         # 결과 JSON 파일 저장
+│       ├── batch_file.py            # 배치 파일 URL 추출 (path traversal 방지)
+│       └── result_writer.py         # 결과 JSON 파일 저장 (failures, source_path 지원)
 ├── tests/
 │   ├── e2e/
 │   ├── performance/
@@ -534,37 +456,6 @@ sw-test/
 
 ---
 
-# Timeout Strategy
-
-## Task별 Timeout 설정
-
-| Task | Hard Limit | Soft Limit | 용도 |
-|---|---|---|---|
-| `analyze_website` | 300s | 240s | 단건 분석 |
-| `analyze_website_batch` | 600s | 540s | 배치 분석 (1회 LLM 호출) |
-| `analyze_ai_tools_batch` | 3600s | 3300s | 병렬 배치 분석 (ThreadPoolExecutor) |
-
-## Soft/Hard Limit 설명
-
-- **Soft Limit**: Celery worker가 작업에 SIGTERM을 보낼 때간 (작업 정리 기회 제공)
-- **Hard Limit**: 강제 종료까지의 최대 시간
-
-## Gemini API Timeout
-
-| 단계 | Timeout | 담당자 |
-|---|---|---|
-| url_context fetch | 내부 처리 | Gemini API |
-| 분석 요청 전송 및 응답 | 기본값 (네트워크 레이턴시) | Gemini API |
-
-## Retry 정책
-
-| Task | Max Retries | Interval | 누적 대기 |
-|---|---|---|---|
-| `analyze_website` | 3회 | 60s × N (지수) | 60 + 120 + 180 = 360s |
-| `analyze_website_batch` | 3회 | 60s × N (지수) | 60 + 120 + 180 = 360s |
-| `analyze_ai_tools_batch` | 0회 | N/A | N/A |
-
----
 
 # Failure Handling
 
@@ -580,20 +471,50 @@ sw-test/
 }
 ```
 
-## 실패 유형
+## 에러 유형 분류 (error_policy.py)
 
-| 유형 | 재시도 | 처리 |
-|---|---|---|
-| Gemini API 오류 (400, 429, 503 제외) | 3회 | 자동 재시도, 최종 실패 |
-| Gemini API 400 (INVALID_ARGUMENT) | 0회 | 즉시 실패 처리 (재시도 무의미) |
-| Gemini API 503 (서버 오류) | 0회 | 즉시 실패 처리 |
-| Gemini API 429 (Rate limit) | 0회 | 즉시 실패 처리 |
-| url_context fetch 실패 (접근 불가 URL) | 0회 | 즉시 실패 처리 |
-| Invalid domain | 0회 | 즉시 실패 처리 |
-| LLM 응답 파싱 오류 | 3회 | 자동 재시도 |
-| DB 저장 오류 | 3회 | 자동 재시도 |
-| Timeout (soft_time_limit) | 1회 | Soft limit 초과 시 정리 후 재시도 |
-| Timeout (hard_time_limit) | X | Hard limit 초과 시 즉시 강제 종료 |
+`src/core/error_policy.py`에서 LLM API 에러를 세분화하여 처리한다.
+
+### API 에러 종류 (ApiErrorKind)
+
+| 에러 종류 | HTTP 코드 | gRPC Status | 설명 | 재시도 | DB 상태 |
+|---------|---------|------------|------|--------|---------|
+| `UNREACHABLE` | 400 | INVALID_ARGUMENT | URL_CONTEXT 수집 실패 (접근 불가) | 0회 | unreachable |
+| `PRECONDITION_FAILED` | 400 | FAILED_PRECONDITION | 기능 미활성 등 사전 조건 미충족 | 0회 | blocked |
+| `NOT_FOUND` | 404 | NOT_FOUND | 리소스 없음 | 0회 | unreachable |
+| `AUTH_ERROR` | 401 | UNAUTHENTICATED | API 인증 실패 | 0회 | blocked |
+| `PERMISSION_DENIED` | 403 | PERMISSION_DENIED | API 권한 없음 | 0회 | blocked |
+| `RATE_LIMITED` | 429 | RESOURCE_EXHAUSTED | API 할당량 초과 | 3회 | None |
+| `TIMEOUT` | 504 | DEADLINE_EXCEEDED | 요청 타임아웃 | 3회 | None |
+| `SERVER_UNAVAILABLE` | 503 | UNAVAILABLE | API 서버 일시 불가 | 3회 | None |
+| `SERVER_INTERNAL` | 500 | INTERNAL | API 서버 내부 오류 | 3회 | None |
+| `UNKNOWN` | - | - | 분류 불가한 오류 | 3회 | failure |
+
+### 400 접근 불가 URL TTL 기반 처리
+
+`_is_unreachable_blocked()` 함수로 TTL 판단:
+- `ai_site.status = "unreachable"` 이고 `unreachable_since`로부터 `UNREACHABLE_TTL_SECONDS` (7일) 이내 → 분석 스킵
+- TTL 경과 → 재분석 대상으로 전환
+
+`_is_failed_analysis()` 함수로 재분석 판단:
+- `status in (failure, blocked)` → 재분석 대상
+
+### ErrorPolicy 데이터클래스
+
+```python
+@dataclass(frozen=True)
+class ErrorPolicy:
+    kind: ApiErrorKind              # 에러 종류
+    retryable: bool                 # 재시도 의미 있음 여부
+    mark_unreachable: bool          # DB에 unreachable_since 기록 여부
+    log_level: str                  # "warning" | "error"
+    description: str                # 로그/메시지용 한글 설명
+    site_status: str | None = None  # ai_site.status 설정값
+```
+
+분류 우선순위:
+1. Gemini SDK `ClientError`/`ServerError`의 `.code`, `.status` 속성 활용 (가장 정확)
+2. 문자열 패턴 매칭 (폴백)
 
 ## Retry Backoff
 
@@ -613,12 +534,6 @@ processing (started_at 기록)
   ├─ 임시 실패 → pending (재시도 대기)
   └─ 최종 실패 → failed (completed_at, error_message 기록)
 ```
-
-## 캐시 실패 처리
-
-DB의 기존 분석이 실패 상태(`title`과 `description`이 모두 sentinel 값)인 경우:
-- 재분석 실행 (캐시 무효화)
-- 최대 재시도 초과 시 최종 실패로 기록
 
 ## rule/classify 캐시 스킵 정책
 
@@ -655,9 +570,9 @@ API (즉시 Job ID 반환)
   ↓
 Celery Queue (비동기 처리)
   ├─ analyze: Topic exchange (routing key: analyze.#)
-  │  ├─ Task: analyze_website (단건)
-  │  ├─ Task: analyze_website_batch (배치)
-  │  └─ Task: analyze_ai_tools_batch (병렬 배치)
+  │  ├─ Task: analyze_url (단건)
+  │  ├─ Task: analyze_urls_batch (배치)
+  │  └─ Task: analyze_urls_bulk (병렬 배치)
   ↓
 DB (결과 저장)
 ```
@@ -706,21 +621,6 @@ LLM 응답을 Pydantic으로 검증한다. 반드시:
 
 ---
 
-# Future Expansion
-
-향후 확장 가능 기능:
-
-- Playwright 렌더링 복원 (SPA 대응 필요 시 `_playwright_renderer.py` 활용)
-- Multi-page crawling
-- AI site ranking
-- Embedding search
-- Similar service detection
-- Screenshot OCR
-- Multi-modal analysis
-- Product Hunt integration
-
----
-
 # Result Storage Strategy
 
 ## 선택: Worker Direct DB Save
@@ -738,7 +638,7 @@ API: POST /analyze?url=...
     ↓
 FastAPI 엔드포인트 (Request validation)
     ↓
-Job ID 생성 & DB 저장 (status: "queued")
+Job ID 생성 & DB 저장 (status: "pending")
     ↓
 Celery Task enqueue
     ↓
@@ -755,18 +655,3 @@ Celery Worker Processing (비동기)
 Job 상태 업데이트 (status: "success")
 ```
 
----
-
-## Performance Optimization Roadmap
-
-**자세한 내용은 [Performance Roadmap](./PERFORMANCE_ROADMAP.md) 참고**
-
-### 요약
-
-| 단점 | Phase 1 | Phase 2 | Phase 3 | Phase 4 |
-|------|--------|--------|--------|---------|
-| **응답 느림** | - | ✅ (10배↑) | ✅ (즉시) | ✅ (즉시) |
-| **DB 병목** | ✅ (인덱스) | ✅ (캐시) | ✅ (쓰기 분산) | ✅ (읽기 분산) |
-| **쓰기 느림** | - | - | ✅ (5~10배↑) | ✅ (5~10배↑) |
-| **구현 난도** | ⭐ | ⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐ |
-| **비용** | 낮음 | 낮음 | 중간 | 높음 |

@@ -254,59 +254,45 @@ uv run celery -A src.workers.celery_app events
 
 ---
 
-## Phase 9: Celery 작업 아키텍처 문서화 (현재)
+## Phase 9: 에러 세분화, DB 스키마 개선, 캐시 스킵 정책 강화 ✓
 
-### 9.1 Task별 Timeout 및 Retry 정책 정의
-- `analyze_website`: 단건 분석
-  * time_limit: 300s, soft_time_limit: 240s
-  * max_retries: 3, 간격: 60s × N (지수)
-- `analyze_website_batch`: 배치 분석 (1회 LLM 호출)
-  * time_limit: 600s, soft_time_limit: 540s
-  * max_retries: 3, 간격: 60s × N (지수)
-- `analyze_ai_tools_batch`: 병렬 배치 분석 (ThreadPoolExecutor)
-  * time_limit: 3600s (1시간), soft_time_limit: 3300s
-  * max_retries: 0 (수동 재시도만)
+### 9.1 LLM API 에러 세분화 ✓
+- `src/core/error_policy.py` — `ApiErrorKind` (10가지 에러 종류), `ErrorPolicy` 데이터클래스
+- `src/core/exceptions.py` — `SiteUnreachableError`, `RateLimitError` 등 세분화된 예외 계층
+- 에러 종류별 재시도 여부, `site_status` 설정, 로그 레벨 자동 결정
 
-### 9.2 Cache 및 분석 모드
-- **Cache 조건**:
-  * DB의 기존 AISite 레코드 확인
-  * is_ai_tool과 title이 sentinel 값이 아닐 때 캐시 히트
-  * analyzer == "rule"일 때는 LLM으로 재분석 (upsert)
-- **분석 모드**:
-  * CLASSIFIER_MODE과 무관하게 analyze_task.py의 analyze_website는 항상 LLM 사용
-  * 규칙기반 분석은 /api/v1/rule/classify 엔드포인트에서만 사용
+### 9.2 ai_site 테이블 스키마 개선 ✓
+- `status` 컬럼 추가: `ok` / `unreachable` / `blocked` / `failure` (NULL은 미분류)
+- `unreachable_since` 컬럼 추가: 400 접근 불가 최초 감지 시각 (7일 TTL 기준)
+- `total_score`, `hard_pass`, `review_required` 컬럼 추가 (Gemini 결과에서 파생)
 
-### 9.3 큐 및 라우팅 설정
-- Queue: `analyze` (Topic exchange)
-- Routing key: `analyze.#`
-- Worker prefetch: 1 (순차 처리)
-- Serializer: JSON
-- Task routes: `src.workers.analyze_task.*` → `analyze.default`
+### 9.3 태스크명 및 캐시 스킵 정책 강화 ✓
+- 태스크 함수명 변경: `analyze_website` → `analyze_url`, `analyze_website_batch` → `analyze_urls_batch`, `analyze_ai_tools_batch` → `analyze_urls_bulk`
+- `analyze_urls_batch`: 1회 LLM 호출 배치 방식 → ThreadPoolExecutor 병렬 단건 방식으로 전환
+- 캐시 스킵 조건: `status` 컬럼 기반 (`analyzer != "rule"` LLM 결과 → 캐시 히트)
+- 접근 불가 TTL: `status = 'unreachable'` + 7일 이내 → 즉시 실패 처리
 
-## 구현 현황 (2026-05-14)
+### 9.4 보안 강화 ✓
+- `src/core/batch_file.py`: `data/` 디렉터리 외 경로 차단 (path traversal 방지)
+- `src/core/config.py`: 환경변수 getter에 `@lru_cache` 적용
+
+### 9.5 결과 파일 개선 ✓
+- `src/core/result_writer.py`: `write_batch()` — `source_path`, `failures` 파라미터 추가
+- 실패 항목도 `error` 필드와 함께 결과 파일에 기록
+
+## 구현 현황 (2026-05-16)
 
 ### 완료된 것 ✓
-- Phase 1: DB 모델, 마이그레이션, Pydantic 스키마 ✓
-- Phase 2: FastAPI API 엔드포인트 ✓
-- Phase 3: Gemini API + LLM 통합 ✓
-- Phase 4: Celery 비동기 처리 ✓
-- Phase 5: url_context 전환 및 안정화 ✓
-- Phase 6: 코드 품질 개선 및 리팩터링 ✓
-- Phase 7: 규칙기반 URL 분류기 통합 (CLASSIFIER_MODE 환경변수 분기) ✓
-- Phase 8: 규칙기반 분류 API 및 DB 저장 연동 ✓
-- Phase 9: Celery 작업 아키텍처 문서화 ✓
+- Phase 1~8: 기존과 동일 ✓
+- Phase 9: 에러 세분화, DB 스키마 개선, 캐시 스킵 정책 강화 ✓
 
 ### 테스트 결과
 - **E2E 테스트**: 9개 모두 통과 ✓
-- **단위 테스트**: 55개 모두 통과 ✓ (22 + 33)
-- **성능 테스트**: 8개 모두 통과 ✓
-- **총 테스트**: 72개+ 통과 ✓
+- **단위 테스트**: 55개 모두 통과 ✓
+- **총 테스트**: 64개+ 통과 ✓
 
 ### 배포 가능 상태
 - Docker Compose 설정 완료
-- 환경 설정 문서 작성 (DEPLOYMENT.md)
 - Gemini free tier 활용으로 API 비용 절감
 - 규칙기반 분류기 (CLASSIFIER_MODE=rule) 오프라인 분석 가능
-- API 응답 시간 < 1초 검증 ✓
-- 처리량 > 10 req/sec 검증 ✓
-- Celery 작업 타이밍 및 재시도 정책 검증 ✓
+- LLM API 에러 세분화 및 접근 불가 TTL 정책 적용
