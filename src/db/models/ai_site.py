@@ -33,10 +33,10 @@ class AISite(BaseModel):
                          comment="신뢰성 점수 (1–10)")
     score_originality = Column(Integer, nullable=True,
                                comment="독창성 점수 (1–10)")
-    hard_pass = Column(Boolean, nullable=True,
-                       comment="필수 품질 기준 전체 통과 여부")
     total_score = Column(Float, nullable=True,
                          comment="규칙기반 파이프라인 종합 점수 (0–100)")
+    hard_pass = Column(Boolean, nullable=True,
+                       comment="필수 품질 기준 전체 통과 여부")
     review_required = Column(Boolean, nullable=True,
                              comment="수동 검수 필요 여부")
     last_analyzed_at = Column(DateTime, nullable=True, index=True,

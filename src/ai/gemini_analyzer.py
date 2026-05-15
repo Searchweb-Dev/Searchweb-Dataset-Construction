@@ -87,6 +87,7 @@ class GeminiAnalyzer:
 
         result = self._parse_single(response)
         result["analyzer"] = "gemini"
+        result.update(self._compute_quality_fields(result))
 
         elapsed = time.time() - start_time
         logger.info(
@@ -119,6 +120,8 @@ class GeminiAnalyzer:
         self._check_finish_reason(",".join(urls), response)
 
         results = self._parse_batch(response, urls)
+        for r in results:
+            r.update(self._compute_quality_fields(r))
 
         elapsed = time.time() - start_time
         logger.info("[Gemini] 배치 분석 완료: %d개 URL (%.2f초)", len(urls), elapsed)
@@ -217,6 +220,35 @@ class GeminiAnalyzer:
         except Exception as e:
             logger.debug("[%s] finish_reason 확인 중 오류: %s", url, e)
 
+    def _compute_quality_fields(self, result: dict[str, Any]) -> dict[str, Any]:
+        """Gemini 응답에서 total_score, hard_pass, review_required를 파생한다.
+
+        total_score: scores 가중 평균을 0–100으로 환산
+            (utility * 0.4 + trust * 0.3 + originality * 0.3) * 10
+        hard_pass: confidence >= 0.8 이고 is_ai_tool=True
+        review_required: confidence < 0.7 이거나 (is_ai_tool이고 total_score < 60)
+        """
+        scores = result.get("scores") or {}
+        try:
+            utility = float(scores.get("utility") or 0)
+            trust = float(scores.get("trust") or 0)
+            originality = float(scores.get("originality") or 0)
+            total_score = round((utility * 0.4 + trust * 0.3 + originality * 0.3) * 10, 2)
+        except (TypeError, ValueError):
+            total_score = 0.0
+
+        confidence = float(result.get("confidence") or 0)
+        is_ai_tool = bool(result.get("is_ai_tool"))
+
+        hard_pass = is_ai_tool and confidence >= 0.8
+        review_required = confidence < 0.7 or (is_ai_tool and total_score < 60.0)
+
+        return {
+            "total_score": total_score,
+            "hard_pass": hard_pass,
+            "review_required": review_required,
+        }
+
     def _default_response(self) -> dict[str, Any]:
         """파싱 실패 시 기본 응답 구조."""
         return {
@@ -227,4 +259,7 @@ class GeminiAnalyzer:
             "tags": [],
             "scores": {"utility": 0, "trust": 0, "originality": 0},
             "confidence": 0,
+            "total_score": 0.0,
+            "hard_pass": False,
+            "review_required": True,
         }
