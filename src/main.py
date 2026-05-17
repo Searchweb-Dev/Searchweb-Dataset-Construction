@@ -2,6 +2,7 @@
 
 import logging
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,10 +17,19 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """앱 시작 시 DB 테이블 생성."""
+    Base.metadata.create_all(bind=engine)
+    yield
+
+
 app = FastAPI(
     title="AI Site Detection Worker",
     version="0.1.0",
-    description="Claude + MCP 기반 AI 웹사이트 판별 Worker",
+    description="Gemini LLM 및 규칙기반 파이프라인을 활용한 AI 웹사이트 판별 Worker",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -35,13 +45,7 @@ app.include_router(rule_routes.router, prefix="/api/v1/rule", tags=["rule"])
 app.include_router(job_routes.router, prefix="/api/v1/jobs", tags=["jobs"])
 
 
-@app.on_event("startup")
-async def startup() -> None:
-    """앱 시작 시 DB 테이블 생성."""
-    Base.metadata.create_all(bind=engine)
-
-
 @app.get("/health", tags=["health"])
-def health_check():
+def health_check() -> dict[str, str]:
     """헬스 체크."""
     return {"status": "ok"}
