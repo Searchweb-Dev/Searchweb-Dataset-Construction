@@ -25,6 +25,7 @@ def get_db_url() -> str:
     return os.getenv("DATABASE_URL", "sqlite:///./test.db")
 
 
+@lru_cache
 def get_api_key() -> str:
     """API 키 반환. 환경변수 미설정 시 RuntimeError 발생."""
     key = os.getenv("API_KEY")
@@ -33,12 +34,14 @@ def get_api_key() -> str:
     return key
 
 
-def get_allowed_origins() -> list[str]:
+@lru_cache
+def get_allowed_origins() -> tuple[str, ...]:
     """허용된 CORS 오리진 목록 반환."""
     raw = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8000")
-    return [o.strip() for o in raw.split(",") if o.strip()]
+    return tuple(o.strip() for o in raw.split(",") if o.strip())
 
 
+@lru_cache
 def get_llm_provider() -> str:
     """LLM 프로바이더 반환. 환경변수 미설정 시 RuntimeError 발생."""
     provider = os.getenv("LLM_PROVIDER")
@@ -47,6 +50,7 @@ def get_llm_provider() -> str:
     return provider
 
 
+@lru_cache
 def get_gemini_api_key() -> str:
     """Gemini API 키 반환. 환경변수 미설정 시 RuntimeError 발생."""
     key = os.getenv("GEMINI_API_KEY")
@@ -55,6 +59,7 @@ def get_gemini_api_key() -> str:
     return key
 
 
+@lru_cache
 def get_gemini_model() -> str:
     """Gemini 모델명 반환. 환경변수 미설정 시 RuntimeError 발생."""
     model = os.getenv("GEMINI_MODEL")

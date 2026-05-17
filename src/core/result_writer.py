@@ -4,15 +4,13 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any, Optional
+from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
-_DATA_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-    "data",
-)
+_DATA_DIR = str(Path(__file__).parents[2] / "data")
 _SOURCE_PATH = os.path.join(_DATA_DIR, "ai-tools.json")
 
 
@@ -45,7 +43,7 @@ def _load_source(source_path: str) -> list[dict[str, Any]]:
             data = json.load(f)
         return [item for item in data if isinstance(item, dict)]
     except Exception as e:
-        logger.error(f"원본 파일 읽기 실패: {source_path} ({e})")
+        logger.error("원본 파일 읽기 실패: %s (%s)", source_path, e)
         return []
 
 
@@ -88,10 +86,10 @@ def _to_failed_entry(url: str, error: str, checked_at: str) -> dict[str, Any]:
 
 def write_batch(
     results: list[tuple[str, dict[str, Any]]],
-    checked_at: Optional[str] = None,
-    failures: Optional[list[tuple[str, str]]] = None,
-    source_path: Optional[str] = None,
-) -> Optional[str]:
+    checked_at: str | None = None,
+    failures: list[tuple[str, str]] | None = None,
+    source_path: str | None = None,
+) -> str | None:
     """한 배치 분석의 결과를 원본 기반 새 파일에 한 번에 저장한다.
 
     원본 파일을 베이스로 읽고, 이번 배치에서 분석된 항목을
@@ -161,5 +159,5 @@ def write_batch(
         )
         return out_path
     except Exception as e:
-        logger.error(f"결과 파일 저장 실패: {e}")
+        logger.error("결과 파일 저장 실패: %s", e)
         return None

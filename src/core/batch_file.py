@@ -2,11 +2,13 @@
 
 import json
 import logging
-from typing import IO
+import os
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 _MAX_URLS = 500
+_ALLOWED_BASE = str(Path(__file__).parents[2] / "data")
 
 
 def extract_urls_from_bytes(content: bytes, filename: str = "") -> list[str]:
@@ -45,6 +47,8 @@ def extract_urls_from_bytes(content: bytes, filename: str = "") -> list[str]:
 def extract_urls_from_path(file_path: str) -> list[str]:
     """서버 경로 파일에서 URL 목록을 추출한다.
 
+    data/ 디렉터리 하위 파일만 허용한다.
+
     Args:
         file_path: 서버 내 파일 경로.
 
@@ -52,14 +56,18 @@ def extract_urls_from_path(file_path: str) -> list[str]:
         추출된 URL 문자열 목록 (최대 500개).
 
     Raises:
+        ValueError: 허용되지 않는 경로인 경우.
         FileNotFoundError: 파일이 존재하지 않는 경우.
         ValueError: URL을 하나도 추출할 수 없는 경우.
     """
-    import os
-    if not os.path.isfile(file_path):
+    real = os.path.realpath(file_path)
+    if not real.startswith(_ALLOWED_BASE + os.sep):
+        raise ValueError(f"허용되지 않는 경로입니다: {file_path}")
+
+    if not os.path.isfile(real):
         raise FileNotFoundError(f"파일을 찾을 수 없습니다: {file_path}")
 
-    with open(file_path, "rb") as f:
+    with open(real, "rb") as f:
         content = f.read()
 
     return extract_urls_from_bytes(content, filename=file_path)
@@ -98,6 +106,7 @@ def _parse_text(content: bytes) -> list[str]:
     try:
         text = content.decode("utf-8")
     except UnicodeDecodeError:
+        logger.warning("UTF-8 디코딩 실패, 오류 문자를 대체 문자로 처리합니다.")
         text = content.decode("utf-8", errors="replace")
 
     return [line.strip() for line in text.splitlines() if line.strip()]
