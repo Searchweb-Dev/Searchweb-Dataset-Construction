@@ -41,6 +41,22 @@ Gemini url_context 툴로 웹사이트를 분석한다.
 
 ---
 
+## LLM vs Rule 실행 구조 비교
+
+| 항목 | LLM | Rule |
+|---|---|---|
+| 엔드포인트 | `POST /api/v1/analyze` | `POST /api/v1/rule/classify` |
+| 실행 위치 | Celery **worker** 프로세스 | **API** 프로세스 |
+| 처리 방식 | 비동기 (202 Accepted → 폴링) | 동기 (결과 즉시 반환) |
+| 현재 지원 분석 단위 | 단건 / 배치 / 백그라운드 벌크 | 단건만 |
+| 외부 API | Gemini (유료) | 없음 |
+| worker 의존 | 필수 | 불필요 |
+
+> **설계 의도**: rule은 단건 즉시 분석 용도로 API 프로세스에서 동기 실행한다.
+> 배치 수요가 생기면 그때 worker 이관을 검토한다.
+
+---
+
 ## CLASSIFIER_MODE=rule
 
 규칙기반 8단계 파이프라인으로 오프라인 분석한다 (`src/rule/` 패키지).
@@ -48,7 +64,8 @@ Gemini url_context 툴로 웹사이트를 분석한다.
 ### 규칙기반 분류: `rule_classify`
 
 - **엔드포인트**: `POST /api/v1/rule/classify`
-- **처리**: 동기 분석 (API 응답에 결과 즉시 포함)
+- **실행 위치**: API 프로세스 내 동기 실행 — worker/Celery 큐를 거치지 않음
+- **처리**: 요청 → `RuleAnalyzer.analyze_website()` → DB 저장 → 응답 반환 (한 번에)
 - **기술**: 키워드 매칭 + 휴리스틱 기반 신호 추출
 - **특징**:
   - 외부 API 비용 없음
