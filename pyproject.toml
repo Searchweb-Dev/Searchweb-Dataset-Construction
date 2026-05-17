@@ -1,5 +1,5 @@
 [project]
-name = "sw-test"
+name = "ai-detector"
 version = "0.1.0"
 description = "Search Web Data Processing and Analysis System"
 requires-python = ">=3.9"
