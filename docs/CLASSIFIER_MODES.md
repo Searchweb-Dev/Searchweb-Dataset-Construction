@@ -61,6 +61,10 @@ Gemini url_context 툴로 웹사이트를 분석한다.
     - homepage 403 + 후보 URL 4개 이상 중 60% 이상이 403 → `anti_bot_blocked=True` 판정
     - `anti_bot_blocked=True`이면 `rejected` 대신 `incubating`으로 완충 적용
     - DB `ai_site.status`를 `"blocked"`로 저장 (재분석 대상 유지)
+  - **후보 URL 수집 로깅**:
+    - 수집된 후보 URL을 종류별(pricing / docs / policy / product / probe)로 INFO 로그 출력
+    - 비어있는 종류는 출력 생략
+    - 예: `[chatgpt.com] 후보 URL (pricing): ['https://chatgpt.com/pricing']`
   - **신뢰도 기반 캐시 스킵**:
     - `analyzer != "rule"` (LLM 결과) → 항상 캐시 반환
     - `hard_pass=true` + `review_required=false` + `total_score >= 60.0` → 캐시 반환
