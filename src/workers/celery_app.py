@@ -2,9 +2,14 @@
 
 import logging
 import os
+from typing import Any
+
 from celery import Celery
 from celery.signals import setup_logging
+from dotenv import load_dotenv
 from kombu import Exchange, Queue
+
+load_dotenv()
 
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -26,7 +31,7 @@ app.conf.update(
 
 
 @setup_logging.connect
-def configure_logging(**kwargs):
+def configure_logging(**kwargs: Any) -> None:
     """Celery worker 로그 레벨을 환경변수 LOG_LEVEL로 통일한다."""
     logging.basicConfig(
         level=getattr(logging, log_level, logging.INFO),

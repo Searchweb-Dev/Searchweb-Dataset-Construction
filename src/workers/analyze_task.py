@@ -4,7 +4,7 @@ import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
-from typing import Optional, Any
+from typing import Any
 from uuid import UUID, uuid4
 
 from src.db.models import AnalysisJob, AISite
@@ -43,6 +43,7 @@ logger = logging.getLogger(__name__)
 # LLM API rate limit과 DB 연결 수를 고려하여 조정한다.
 _BATCH_CONCURRENCY = int(os.getenv("BATCH_CONCURRENCY", "5"))
 
+
 def _is_failed_analysis(site: AISite) -> bool:
     """이전 분석이 실패 상태인지 확인."""
     return site.status in (SITE_STATUS_FAILURE, SITE_STATUS_BLOCKED)
@@ -56,7 +57,8 @@ def _is_unreachable_blocked(site: AISite) -> bool:
     """
     if site.status != SITE_STATUS_UNREACHABLE or site.unreachable_since is None:
         return False
-    elapsed = (datetime.now(timezone.utc) - site.unreachable_since.replace(tzinfo=timezone.utc)).total_seconds()
+    now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
+    elapsed = (now_naive - site.unreachable_since).total_seconds()
     return elapsed < UNREACHABLE_TTL_SECONDS
 
 
@@ -100,15 +102,15 @@ def analyze_url(self, job_id: str, url: str) -> dict[str, Any]:
     db = SessionLocal()
 
     try:
-        job = db.query(AnalysisJob).filter(AnalysisJob.job_id == job_id).first()
+        job = db.query(AnalysisJob).filter(AnalysisJob.job_id == UUID(job_id)).first()
         if not job:
-            logger.error(f"Job을 찾을 수 없음: {job_id}")
+            logger.error("Job을 찾을 수 없음: %s", job_id)
             return {"error": "Job not found"}
 
         job.status = JobStatus.PROCESSING
         job.started_at = utc_now()
         db.commit()
-        logger.info(f"Job 상태 업데이트 (processing): {job_id}")
+        logger.info("Job 상태 업데이트 (processing): %s", job_id)
 
         existing = db.query(AISite).filter(AISite.url == url).first()
         if existing and job.request_source != "force":
@@ -121,14 +123,14 @@ def analyze_url(self, job_id: str, url: str) -> dict[str, Any]:
                 return {"job_id": str(job_id), "status": JobStatus.FAILED, "error": "unreachable"}
             elif _is_failed_analysis(existing):
                 logger.warning(
-                    f"이전 분석이 실패 상태입니다. 재분석합니다: {url} "
-                    f"(title={existing.title!r}, description={existing.description!r})"
+                    "이전 분석이 실패 상태입니다. 재분석합니다: %s (title=%r, description=%r)",
+                    url, existing.title, existing.description,
                 )
             elif existing.analyzer == "rule":
                 # rule 분류 결과는 LLM으로 재분석해 upsert
-                logger.info(f"rule 분류 결과를 LLM으로 재분석합니다: {url}")
+                logger.info("rule 분류 결과를 LLM으로 재분석합니다: %s", url)
             else:
-                logger.info(f"캐시에 결과가 있어 결과 파일 쓰기를 건너뜁니다: {url}")
+                logger.info("캐시에 결과가 있어 결과 파일 쓰기를 건너뜁니다: %s", url)
                 job.status = JobStatus.SUCCESS
                 job.completed_at = utc_now()
                 job.site_id = existing.site_id
@@ -151,7 +153,7 @@ def analyze_url(self, job_id: str, url: str) -> dict[str, Any]:
         job.completed_at = utc_now()
         job.site_id = result.get("site_id")
         db.commit()
-        logger.info(f"분석 완료: {job_id} -> {result}")
+        logger.info("분석 완료: %s -> %s", job_id, result)
 
         return {
             "job_id": str(job_id),
@@ -218,28 +220,28 @@ def analyze_url(self, job_id: str, url: str) -> dict[str, Any]:
         return {"job_id": str(job_id), "status": JobStatus.FAILED, "error": policy.kind}
 
     except Exception as e:
-        logger.error(f"분석 작업 실패: {e}")
+        logger.error("분석 작업 실패: %s", e, exc_info=True)
         db.rollback()
         db.expire_all()
 
-        job = db.query(AnalysisJob).filter(AnalysisJob.job_id == job_id).first()
+        job = db.query(AnalysisJob).filter(AnalysisJob.job_id == UUID(job_id)).first()
         if job:
             job.retry_count = self.request.retries
             job.error_message = str(e)
 
             if self.request.retries < self.max_retries:
                 job.status = JobStatus.PENDING
-                logger.info(f"재시도 대기: {job_id} (시도: {self.request.retries + 1}/{self.max_retries})")
+                logger.info("재시도 대기: %s (시도: %d/%d)", job_id, self.request.retries + 1, self.max_retries)
             else:
                 job.status = JobStatus.FAILED
                 job.completed_at = utc_now()
                 _mark_site_status(db, url, SITE_STATUS_FAILURE)
-                logger.error(f"최종 실패: {job_id}")
+                logger.error("최종 실패: %s", job_id)
 
             db.commit()
 
         if self.request.retries < self.max_retries:
-            raise self.retry(exc=Exception(str(e)), countdown=60 * (self.request.retries + 1))
+            raise self.retry(exc=e, countdown=60 * (self.request.retries + 1))
 
         return {"job_id": str(job_id), "status": JobStatus.FAILED, "error": str(e)}
 
@@ -370,7 +372,7 @@ def _update_job_statuses(
 
 
 @app.task(autoretry_for=(), max_retries=0, time_limit=3600, soft_time_limit=3300)
-def analyze_urls_bulk(urls: list[str], force_reanalyze: bool, source_path: Optional[str] = None) -> dict[str, Any]:
+def analyze_urls_bulk(urls: list[str], force_reanalyze: bool, source_path: str | None = None) -> dict[str, Any]:
     """
     URL 목록을 병렬 분석하고 결과를 파일 한 개에 저장한다.
 
@@ -450,7 +452,7 @@ def analyze_urls_bulk(urls: list[str], force_reanalyze: bool, source_path: Optio
     )
 
     if not pending_urls:
-        logger.info(f"배치 완료: 분석 0건, 스킵 {skipped}건, 실패 0건")
+        logger.info("배치 완료: 분석 0건, 스킵 %d건, 실패 0건", skipped)
         return {"analyzed": 0, "skipped": skipped, "failed": 0, "output_path": None}
 
     batch_results: list[tuple[str, dict[str, Any]]] = []
@@ -466,14 +468,12 @@ def analyze_urls_bulk(urls: list[str], force_reanalyze: bool, source_path: Optio
         for future in as_completed(futures):
             url, job_id, result, error = future.result()
             if error:
-                logger.error(f"배치 항목 분석 실패: {url} ({error})")
+                logger.error("배치 항목 분석 실패: %s (%s)", url, error)
                 failure_map[job_id] = error
             else:
-                if result is None:
-                    raise AnalysisError(f"배치 분석 결과가 None입니다: {url}")
                 batch_results.append((url, result))
                 success_map[job_id] = result.get("site_id")
-                logger.info(f"배치 분석 완료: {url}")
+                logger.info("배치 분석 완료: %s", url)
 
     # Job 상태 일괄 업데이트 (세션 1개)
     _update_job_statuses(success_map, failure_map)
@@ -485,8 +485,8 @@ def analyze_urls_bulk(urls: list[str], force_reanalyze: bool, source_path: Optio
 
     failed = len(failure_map)
     logger.info(
-        f"배치 완료: 분석 {len(batch_results)}건, 스킵 {skipped}건, "
-        f"실패 {failed}건, 출력 파일: {output_path}"
+        "배치 완료: 분석 %d건, 스킵 %d건, 실패 %d건, 출력 파일: %s",
+        len(batch_results), skipped, failed, output_path,
     )
 
     return {
