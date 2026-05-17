@@ -133,17 +133,32 @@ Worker는 AI 분석 전용 서비스다.
 - Redis
 - Celery
 
-역할:
-- 비동기 Job 처리
-- Retry
-- Timeout 관리
+### Redis 역할
 
-세부 설정:
+| 역할 | 설명 |
+|---|---|
+| **Broker** | API가 enqueue한 task 메시지를 저장. Worker가 꺼내 실행하는 메시지 큐 |
+| **Result Backend** | Worker가 task 완료 후 결과를 저장하는 저장소 |
+
+### Celery task 목록
+
+| Task | time_limit | max_retries | 용도 |
+|---|---|---|---|
+| `analyze_url` | 300s | 3 | 단건 URL 분석. 재시도 로직 포함 |
+| `analyze_urls_batch` | 600s | 3 | 최대 5개 URL 병렬 분석. `/analyze` 전용 |
+| `analyze_urls_bulk` | 3600s | 0 | 파일 기반 대량 URL 일괄 분석. `/batch` 전용 |
+
+### Celery 세부 설정
+
 - 큐명: `analyze`
 - 라우팅: Topic exchange (`analyze.#`)
 - Serializer: JSON
 - Worker prefetch: 1 (순차 처리)
 - Max tasks per child: 1000 (메모리 누수 방지)
+
+### Flower
+
+Celery task 실행 현황(대기·처리·성공·실패)을 웹 UI로 모니터링. `:5555`에서 서비스.
 
 ---
 
