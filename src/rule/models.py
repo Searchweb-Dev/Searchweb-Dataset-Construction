@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Dict, List, Optional, Tuple
 
 from src.rule.keywords import ACTION_KEYWORDS, TASK_NOUNS
 from src.rule.utils import lower
@@ -26,7 +25,7 @@ class CriterionResult:
     passed: bool
     reason: str
     confidence: float = 1.0
-    evidence: List[Evidence] = field(default_factory=list)
+    evidence: list[Evidence] = field(default_factory=list)
 
 
 @dataclass
@@ -40,8 +39,8 @@ class FetchResult:
     text: str
     title: str
     meta_description: str
-    links: List[Tuple[str, str]] = field(default_factory=list)
-    error: Optional[str] = None
+    links: list[tuple[str, str]] = field(default_factory=list)
+    error: str | None = None
     fetched_by: str = "requests"
 
 
@@ -55,15 +54,15 @@ class EvaluationResult:
     passed_count: int
     hard_pass: bool
     review_required: bool
-    review_reasons: List[str]
-    criteria: Dict[str, CriterionResult]
+    review_reasons: list[str]
+    criteria: dict[str, CriterionResult]
     summary: str
-    extracted: Dict[str, object]
-    total_score: Optional[float] = None
-    score_breakdown: Optional[Dict[str, float]] = None
-    management: Optional[Dict[str, object]] = None
+    extracted: dict[str, object]
+    total_score: float | None = None
+    score_breakdown: dict[str, float] | None = None
+    management: dict[str, object] | None = None
 
-    def to_dict(self) -> Dict[str, object]:
+    def to_dict(self) -> dict[str, object]:
         """결과를 JSON 직렬화 가능한 dict 형태로 변환한다."""
         out = {
             "input_url": self.input_url,
@@ -99,7 +98,7 @@ class EvaluationResult:
 class ClearDescriptionLLM:
     """기능 설명 명확성 판정용 LLM 인터페이스."""
 
-    def evaluate(self, payload: Dict[str, str]) -> Dict[str, object]:
+    def evaluate(self, payload: dict[str, str]) -> dict[str, object]:
         """입력 payload를 받아 기능 설명 판정 결과를 반환한다."""
         raise NotImplementedError
 
@@ -107,7 +106,7 @@ class ClearDescriptionLLM:
 class DummyLLM(ClearDescriptionLLM):
     """LLM 연동 전 테스트용 휴리스틱 스텁 구현체."""
 
-    def evaluate(self, payload: Dict[str, str]) -> Dict[str, object]:
+    def evaluate(self, payload: dict[str, str]) -> dict[str, object]:
         """간단한 키워드 매칭으로 기능 설명 명확성을 추정한다."""
         candidate = lower(payload.get("candidate_sentence", ""))
         passed = any(k in candidate for k in ACTION_KEYWORDS) and any(k in candidate for k in TASK_NOUNS)

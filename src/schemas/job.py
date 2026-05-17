@@ -1,10 +1,10 @@
 """분석 작업 요청/응답 스키마."""
 
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 from pydantic import BaseModel, HttpUrl, Field
 
+from src.core.enums import JobStatus
 from .site import AISiteResponse
 
 
@@ -20,13 +20,13 @@ class AnalysisJobResponse(BaseModel):
 
     job_id: UUID
     url: str
-    status: str
+    status: JobStatus
     created_at: datetime
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
     retry_count: int = 0
-    error_message: Optional[str] = None
-    result: Optional[AISiteResponse] = None
+    error_message: str | None = None
+    result: AISiteResponse | None = None
 
     model_config = {"from_attributes": True}
 
@@ -42,5 +42,5 @@ class BatchAnalysisResponse(BaseModel):
 class BatchFilePathRequest(BaseModel):
     """서버 경로 배치 분석 요청 스키마."""
 
-    file_path: str = Field(description="서버 내 분석 대상 파일 경로 (JSON 또는 텍스트)")
+    file_path: str = Field(min_length=1, description="서버 내 분석 대상 파일 경로 (JSON 또는 텍스트)")
     force_reanalyze: bool = False

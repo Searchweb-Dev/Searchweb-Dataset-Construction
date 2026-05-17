@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import re
-from typing import Dict, List
 
 
 POSITIVE_USE_TEXT = {
@@ -193,7 +192,7 @@ NON_AI_SITE_KEYWORDS = NON_AI_SITE_STRONG_KEYWORDS | NON_AI_SITE_WEAK_KEYWORDS
 EXTERNAL_DOCS_HOST_PREFIXES = ("help.", "docs.", "support.", "developers.", "developer.")
 EXTERNAL_POLICY_HOSTS = ("openai.com", "www.openai.com")
 
-PRIMARY_CATEGORY_KEYWORDS: Dict[str, set[str]] = {
+PRIMARY_CATEGORY_KEYWORDS: dict[str, set[str]] = {
     "Writing & Docs": {
         "write", "writing", "document", "docs", "documentation", "email", "blog",
         "rewrite", "translate", "proofread", "grammar", "copywriting", "content",
@@ -244,7 +243,7 @@ PRIMARY_CATEGORY_KEYWORDS: Dict[str, set[str]] = {
     },
 }
 
-SUBTASK_KEYWORDS_BY_PRIMARY: Dict[str, Dict[str, set[str]]] = {
+SUBTASK_KEYWORDS_BY_PRIMARY: dict[str, dict[str, set[str]]] = {
     "Writing & Docs": {
         "요약": {"summarize", "summary", "executive summary", "요약"},
         "번역": {"translate", "translation", "localization", "번역"},
@@ -313,7 +312,7 @@ SUBTASK_KEYWORDS_BY_PRIMARY: Dict[str, Dict[str, set[str]]] = {
     },
 }
 
-META_CATEGORY_KEYWORDS: Dict[str, set[str]] = {
+META_CATEGORY_KEYWORDS: dict[str, set[str]] = {
     "Create": {"create", "generate", "build", "작성", "생성"},
     "Analyze": {"analyze", "analysis", "insight", "분석"},
     "Build": {"develop", "code", "ship", "deploy", "개발"},
@@ -322,7 +321,7 @@ META_CATEGORY_KEYWORDS: Dict[str, set[str]] = {
     "Secure": {"security", "privacy", "compliance", "보안", "개인정보"},
 }
 
-DEFAULT_META_BY_PRIMARY: Dict[str, List[str]] = {
+DEFAULT_META_BY_PRIMARY: dict[str, list[str]] = {
     "Writing & Docs": ["Create", "Communicate"],
     "Coding": ["Build", "Create"],
     "Research": ["Analyze"],
@@ -333,7 +332,7 @@ DEFAULT_META_BY_PRIMARY: Dict[str, List[str]] = {
     "DevOps / Security": ["Secure", "Analyze"],
 }
 
-PLATFORM_KEYWORDS: Dict[str, set[str]] = {
+PLATFORM_KEYWORDS: dict[str, set[str]] = {
     "web": {"web app", "browser-based", "in your browser", "online", "웹앱", "웹 앱", "웹 기반"},
     "mobile": {"ios", "android", "app store", "google play", "mobile"},
     "desktop": {"desktop app", "windows app", "mac app", "macos"},

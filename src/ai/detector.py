@@ -1,7 +1,7 @@
 """AI 웹사이트 판별 및 분석 결과 저장 로직."""
 
 import logging
-from typing import Optional, Any
+from typing import Any
 from sqlalchemy.orm import Session
 
 from src.db.models import AISite, AICategory, AITag
@@ -28,15 +28,15 @@ class AIDetector:
         self.db = db
         self.analyzer = analyzer if analyzer is not None else get_analyzer()
 
-    def detect_and_save(self, url: str) -> Optional[dict[str, Any]]:
+    def detect_and_save(self, url: str) -> dict[str, Any] | None:
         """웹사이트를 분석하고 결과를 DB에 저장."""
         try:
             url = normalize_url(url)
-            logger.info(f"{get_llm_provider()} 분석 시작: {url}")
+            logger.info("%s 분석 시작: %s", get_llm_provider(), url)
             analysis_result = self.analyzer.analyze_website(url=url)
 
             if not self._validate_analysis(analysis_result):
-                logger.error(f"분석 결과 검증 실패: {url}")
+                logger.error("분석 결과 검증 실패: %s", url)
                 return None
 
             ai_site = self._save_site(url=url, analysis=analysis_result)
@@ -50,7 +50,7 @@ class AIDetector:
                 )
 
             self.db.commit()
-            logger.info(f"분석 결과 저장 완료: {url}")
+            logger.info("분석 결과 저장 완료: %s", url)
 
             return {
                 "site_id": ai_site.site_id if ai_site else None,
@@ -68,7 +68,7 @@ class AIDetector:
             self.db.rollback()
             raise
         except Exception as e:
-            logger.error(f"AI 판별 중 오류: {e}")
+            logger.error("AI 판별 중 오류: %s", e, exc_info=True)
             self.db.rollback()
             return None
 
@@ -86,7 +86,7 @@ class AIDetector:
 
         return True
 
-    def _save_site(self, url: str, analysis: dict[str, Any]) -> Optional[AISite]:
+    def _save_site(self, url: str, analysis: dict[str, Any]) -> AISite | None:
         """AI 사이트 정보 저장."""
         scores = analysis.get("scores", {})
         now = utc_now()
