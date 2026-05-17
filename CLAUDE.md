@@ -92,9 +92,9 @@ Read:
 - NEVER create: `temp_*`, `*_new`, `*_old`, `*_backup`
 
 ### 3.3. Execution
-- Local: `uv`
+- Local: **Always use `uv run python`** — never call `python3` or `python` directly
 - Docker: `pip + requirements.txt`
-- `alembic/` 마이그레이션 파일 수정 후 도커 재적용 시 반드시 이미지 재빌드 필요:
+- After modifying `alembic/` migration files, a full image rebuild is required before re-applying:
   ```bash
   docker compose down -v
   docker compose build --no-cache api
