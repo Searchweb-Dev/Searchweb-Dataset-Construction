@@ -444,7 +444,7 @@ sw-test/
 ├── CLAUDE.md
 ├── requirements.txt
 ├── docker-compose.yml
-├── Dockerfile                       # API 서버 이미지
+├── Dockerfile.api                   # API 서버 이미지
 └── Dockerfile.worker                # Celery Worker 이미지
 ```
 

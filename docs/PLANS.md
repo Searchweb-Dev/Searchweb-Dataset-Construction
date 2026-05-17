@@ -132,7 +132,7 @@ uv run celery -A src.workers.celery_app events
 - `fix(docker)`: api/worker 서비스에 data 디렉토리 볼륨 마운트 추가
 
 ### 5.3 배포 준비 ✓
-- `Dockerfile`: API 서버 이미지
+- `Dockerfile.api`: API 서버 이미지
 - `Dockerfile.worker`: Celery Worker 이미지
 - `docker-compose.yml`: 전체 스택 구성 (PostgreSQL, Redis, Flower 포함)
 - `DEPLOYMENT.md`: 배포 및 운영 가이드
