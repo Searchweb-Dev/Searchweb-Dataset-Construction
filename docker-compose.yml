@@ -1,5 +1,7 @@
 # Docker Compose 설정: API + Worker + Redis + PostgreSQL.
 
+name: ai-detector
+
 services:
   postgres:
     image: postgres:15-alpine
