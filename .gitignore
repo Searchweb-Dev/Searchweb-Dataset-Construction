@@ -236,5 +236,4 @@ harness/
 ai_url_classifier/
 
 test.db
-test*.json
-test_*.json
+data/test*.json
