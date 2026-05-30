@@ -51,7 +51,7 @@ Read:
 
 ### 2.5. Commits
 - Commit only after tests pass
-- Keep commits atomic
+- Keep commits atomic — commit per file or per logical change
 - Write commit messages in Korean
 
 ### 2.6. Naming
