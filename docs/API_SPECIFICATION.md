@@ -80,6 +80,24 @@ URL별로 job 객체가 담긴 배열을 반환합니다.
 | `retry_count` | integer | 재시도 횟수 |
 | `error_message` | string \| null | 오류 메시지 |
 
+### cURL
+
+```bash
+curl -X POST http://localhost:8000/api/v1/analyze \
+  -H "x-api-key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"urls": ["https://www.example-ai-tool.com", "https://www.another-tool.com"]}'
+```
+
+재분석 강제:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/analyze \
+  -H "x-api-key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"urls": ["https://www.example-ai-tool.com"], "force_reanalyze": true}'
+```
+
 ### Errors
 
 **Status: 422 Unprocessable Entity**
@@ -137,6 +155,24 @@ Content-Type: multipart/form-data
 | `accepted` | integer | 분석 대상으로 접수된 URL 수 |
 | `message` | string | 배치 작업 접수 안내 |
 
+### cURL
+
+```bash
+curl -X POST http://localhost:8000/api/v1/analyze/batch/upload \
+  -H "x-api-key: your-api-key" \
+  -F "file=@urls.json" \
+  -F "force_reanalyze=false"
+```
+
+텍스트 파일:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/analyze/batch/upload \
+  -H "x-api-key: your-api-key" \
+  -F "file=@urls.txt" \
+  -F "force_reanalyze=false"
+```
+
 ### Errors
 
 **Status: 400 Bad Request**
@@ -190,6 +226,24 @@ Content-Type: application/json
   "accepted": 150,
   "message": "150건 분석을 백그라운드에서 시작했습니다. 완료 후 data/ 디렉토리에 결과 파일이 생성됩니다."
 }
+```
+
+### cURL
+
+```bash
+curl -X POST http://localhost:8000/api/v1/analyze/batch/file \
+  -H "x-api-key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"file_path": "data/ai-tools.json", "force_reanalyze": false}'
+```
+
+재분석 강제:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/analyze/batch/file \
+  -H "x-api-key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"file_path": "data/ai-tools.json", "force_reanalyze": true}'
 ```
 
 ### Errors
@@ -310,6 +364,15 @@ Content-Type: application/json
 | `criteria` | object | 각 기준(key)별 평가 결과 (name, passed, reason, confidence, evidence) |
 | `summary` | string | 분류 결과의 한 문장 요약 |
 | `extracted` | object | 추출된 메타데이터 (제목, 설명, 기능 등) |
+
+### cURL
+
+```bash
+curl -X POST http://localhost:8000/api/v1/rule/classify \
+  -H "x-api-key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://www.example-ai-tool.com"}'
+```
 
 ### Errors
 
@@ -445,6 +508,13 @@ x-api-key: {api_key}
   "error_message": "분석 실패",
   "result": null
 }
+```
+
+### cURL
+
+```bash
+curl -X GET http://localhost:8000/api/v1/jobs/550e8400-e29b-41d4-a716-446655440000 \
+  -H "x-api-key: your-api-key"
 ```
 
 ### Errors
