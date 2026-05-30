@@ -45,6 +45,9 @@ def get_job_status(
     if job.status == JobStatus.SUCCESS and job.site_id:
         site = db.query(AISite).filter(AISite.site_id == job.site_id).first()
         if site:
+            # 단건 조회이므로 현재는 N+1 미발생.
+            # 목록 조회로 확장 시 AISite에 categories/tags relationship을 추가하고
+            # selectinload(AISite.categories, AISite.tags)로 교체해야 한다.
             categories = db.query(AICategory).filter(AICategory.site_id == site.site_id).all()
             tags = db.query(AITag).filter(AITag.site_id == site.site_id).all()
 
