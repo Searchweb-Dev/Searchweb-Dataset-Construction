@@ -36,7 +36,7 @@ class TestAnalysisAPI:
             headers={"x-api-key": "wrong-key"},
         )
 
-        assert response.status_code == 403
+        assert response.status_code == 401
         assert "Invalid API Key" in response.json()["detail"]
 
     def test_analyze_request_missing_api_key(self, test_client):
@@ -83,7 +83,7 @@ class TestAnalysisAPI:
             headers={"x-api-key": "wrong-key"},
         )
 
-        assert response.status_code == 403
+        assert response.status_code == 401
 
     def test_job_status_missing_api_key(self, test_client):
         """작업 상태 조회 - API 키 누락."""
