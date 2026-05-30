@@ -1,8 +1,10 @@
 """웹사이트 AI 판별 비동기 작업."""
 
+import itertools
 import logging
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
+from concurrent.futures import ThreadPoolExecutor, FIRST_COMPLETED, wait
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
@@ -288,16 +290,16 @@ def analyze_urls_batch(self, job_ids: list[str], urls: list[str]) -> dict[str, A
             executor.submit(_analyze_one, url, job_id_map[url]): url
             for url in urls
         }
-        for future in as_completed(futures):
-            url, job_id, result, error = future.result()
+        for future in futures:
+            done_url, job_id, result, error = future.result()
             if error:
-                logger.error("배치 항목 분석 실패: %s (%s)", url, error)
+                logger.error("배치 항목 분석 실패: %s (%s)", done_url, error)
                 failure_map[job_id] = error
             else:
                 success_map[job_id] = result.get("site_id") if result else None
                 logger.info(
                     "항목 분류 완료: %s | is_ai_tool=%s",
-                    url, result.get("is_ai_tool") if result else None,
+                    done_url, result.get("is_ai_tool") if result else None,
                 )
 
     _update_job_statuses(success_map, failure_map)
@@ -308,13 +310,21 @@ def analyze_urls_batch(self, job_ids: list[str], urls: list[str]) -> dict[str, A
     return {"success": success, "failed": failed, "total": len(urls)}
 
 
-def _analyze_one(url: str, job_id: UUID) -> tuple[str, UUID, dict[str, Any] | None, str | None]:
-    """
-    URL 하나를 독립 DB 세션으로 분석한다. ThreadPoolExecutor 워커에서 호출된다.
+def _analyze_one(
+    url: str,
+    job_id: UUID,
+    rate_limit_event: threading.Event | None = None,
+) -> tuple[str, UUID, dict[str, Any] | None, str | None]:
+    """URL 하나를 독립 DB 세션으로 분석한다. ThreadPoolExecutor 워커에서 호출된다.
+
+    rate_limit_event가 이미 set 상태이면 API 호출 없이 즉시 스킵을 반환한다.
 
     Returns:
         (url, job_id, result_or_None, error_or_None)
     """
+    if rate_limit_event is not None and rate_limit_event.is_set():
+        return url, job_id, None, "rate_limit_skip"
+
     db = SessionLocal()
     try:
         detector = AIDetector(db, analyzer=get_llm_analyzer())
@@ -327,7 +337,13 @@ def _analyze_one(url: str, job_id: UUID) -> tuple[str, UUID, dict[str, Any] | No
         logger.warning("%s — %s 기록: %s", policy.description, policy.site_status, url)
         _mark_site_status(db, url, policy.site_status)
         return url, job_id, None, policy.site_status
-    except (RateLimitError, ApiTimeoutError, ApiServerUnavailableError, ApiServerInternalError) as e:
+    except RateLimitError as e:
+        policy = get_policy(e)
+        logger.warning("%s: %s", policy.description, url)
+        if rate_limit_event is not None:
+            rate_limit_event.set()
+        return url, job_id, None, str(e)
+    except (ApiTimeoutError, ApiServerUnavailableError, ApiServerInternalError) as e:
         policy = get_policy(e)
         logger.warning("%s: %s", policy.description, url)
         return url, job_id, None, str(e)
@@ -372,8 +388,7 @@ def _update_job_statuses(
 
 @app.task(autoretry_for=(), max_retries=0, time_limit=3600, soft_time_limit=3300)
 def analyze_urls_bulk(urls: list[str], force_reanalyze: bool, source_path: str | None = None) -> dict[str, Any]:
-    """
-    URL 목록을 병렬 분석하고 결과를 파일 한 개에 저장한다.
+    """URL 목록을 병렬 분석하고 결과를 파일 한 개에 저장한다.
 
     LLM API 호출은 ThreadPoolExecutor로 병렬 실행되고,
     DB 쓰기는 각 워커의 독립 세션에서 처리된다.
@@ -457,22 +472,53 @@ def analyze_urls_bulk(urls: list[str], force_reanalyze: bool, source_path: str |
     batch_results: list[tuple[str, dict[str, Any]]] = []
     success_map: dict[UUID, int | None] = {}
     failure_map: dict[UUID, str] = {}
+    rate_limit_event = threading.Event()
 
-    # ThreadPoolExecutor로 병렬 단건 처리
+    # 슬라이딩 윈도우: _BATCH_CONCURRENCY개씩 제출하고 완료될 때마다 다음 URL을 추가 제출한다.
+    # rate_limit_event가 set되면 미제출 URL을 executor에 넣지 않고 즉시 스킵 처리한다.
     with ThreadPoolExecutor(max_workers=_BATCH_CONCURRENCY) as executor:
-        futures = {
-            executor.submit(_analyze_one, url, job_id_map[url]): url
-            for url in pending_urls
-        }
-        for future in as_completed(futures):
-            url, job_id, result, error = future.result()
-            if error:
-                logger.error("배치 항목 분석 실패: %s (%s)", url, error)
-                failure_map[job_id] = error
-            else:
-                batch_results.append((url, result))
-                success_map[job_id] = result.get("site_id")
-                logger.info("배치 분석 완료: %s", url)
+        pending_iter = iter(pending_urls)
+        active_futures: dict[Any, str] = {}
+
+        for url in itertools.islice(pending_iter, _BATCH_CONCURRENCY):
+            active_futures[executor.submit(_analyze_one, url, job_id_map[url], rate_limit_event)] = url
+
+        while active_futures:
+            done, _ = wait(active_futures, return_when=FIRST_COMPLETED)
+            for future in done:
+                done_url, job_id, result, error = future.result()
+                del active_futures[future]
+
+                if error:
+                    logger.error("배치 항목 분석 실패: %s (%s)", done_url, error)
+                    failure_map[job_id] = error
+                else:
+                    batch_results.append((done_url, result))
+                    success_map[job_id] = result.get("site_id")
+                    logger.info("배치 분석 완료: %s", done_url)
+
+                if rate_limit_event.is_set():
+                    continue
+
+                next_url = next(pending_iter, None)
+                if next_url:
+                    active_futures[executor.submit(
+                        _analyze_one, next_url, job_id_map[next_url], rate_limit_event
+                    )] = next_url
+
+        # rate_limit 이후 미제출된 URL을 failure_map에 기록
+        if rate_limit_event.is_set():
+            for url in pending_iter:
+                job_id = job_id_map[url]
+                logger.warning("할당량 초과로 배치 조기 종료 — 스킵: %s", url)
+                failure_map[job_id] = "rate_limit_skip"
+
+    if rate_limit_event.is_set():
+        logger.warning(
+            "API 할당량 초과로 배치 조기 종료: 분석 %d건 완료, %d건 미처리",
+            len(batch_results),
+            sum(1 for v in failure_map.values() if v == "rate_limit_skip"),
+        )
 
     # Job 상태 일괄 업데이트 (세션 1개)
     _update_job_statuses(success_map, failure_map)
