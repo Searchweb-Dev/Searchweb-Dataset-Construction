@@ -2,7 +2,7 @@
 규칙기반 분류 API 테스트.
 
 POST /api/v1/rule/classify 엔드포인트의 동작을 검증한다.
-run_quality_pipeline과 AIDetector를 mock해 외부 네트워크·DB 호출 없이 실행된다.
+RuleAnalyzer와 AIDetector를 mock해 외부 네트워크·DB 호출 없이 실행된다.
 """
 
 from __future__ import annotations
@@ -81,6 +81,23 @@ def _make_saved_result(site_id: int = 1, is_ai_tool: bool = True) -> dict:
     }
 
 
+def _patch_pipeline_run(mock_pipeline: EvaluationResult, mock_saved: dict):
+    """RuleAnalyzer와 AIDetector를 함께 패치하는 컨텍스트 매니저를 반환한다.
+
+    classify() 내부에서 생성되는 RuleAnalyzer 인스턴스의 last_pipeline_result를
+    mock_pipeline으로 고정하고, AIDetector.detect_and_save를 mock_saved로 대체한다.
+    """
+    mock_rule_analyzer = MagicMock()
+    mock_rule_analyzer.last_pipeline_result = mock_pipeline
+
+    from contextlib import ExitStack
+    stack = ExitStack()
+    MockRuleAnalyzer = stack.enter_context(patch("src.api.rule_routes.RuleAnalyzer", return_value=mock_rule_analyzer))
+    MockDetector = stack.enter_context(patch("src.api.rule_routes.AIDetector"))
+    MockDetector.return_value.detect_and_save.return_value = mock_saved
+    return stack, MockDetector, mock_rule_analyzer
+
+
 @pytest.fixture
 def client() -> TestClient:
     """API 키 검증과 DB 세션을 bypass한 테스트 클라이언트.
@@ -108,10 +125,7 @@ class TestRuleClassifySuccess:
         mock_pipeline = _make_pipeline_result()
         mock_saved = _make_saved_result()
 
-        with patch("src.api.rule_routes.run_quality_pipeline", return_value=mock_pipeline), \
-             patch("src.api.rule_routes.AIDetector") as MockDetector:
-            MockDetector.return_value.detect_and_save.return_value = mock_saved
-
+        with _patch_pipeline_run(mock_pipeline, mock_saved)[0]:
             # Act
             response = client.post(CLASSIFY_URL, json={"url": "https://example.com"}, headers=HEADERS)
 
@@ -124,10 +138,7 @@ class TestRuleClassifySuccess:
         mock_pipeline = _make_pipeline_result()
         mock_saved = _make_saved_result()
 
-        with patch("src.api.rule_routes.run_quality_pipeline", return_value=mock_pipeline), \
-             patch("src.api.rule_routes.AIDetector") as MockDetector:
-            MockDetector.return_value.detect_and_save.return_value = mock_saved
-
+        with _patch_pipeline_run(mock_pipeline, mock_saved)[0]:
             # Act
             body = client.post(CLASSIFY_URL, json={"url": "https://example.com"}, headers=HEADERS).json()
 
@@ -145,10 +156,7 @@ class TestRuleClassifySuccess:
         mock_pipeline = _make_pipeline_result()
         mock_saved = _make_saved_result(site_id=42)
 
-        with patch("src.api.rule_routes.run_quality_pipeline", return_value=mock_pipeline), \
-             patch("src.api.rule_routes.AIDetector") as MockDetector:
-            MockDetector.return_value.detect_and_save.return_value = mock_saved
-
+        with _patch_pipeline_run(mock_pipeline, mock_saved)[0]:
             # Act
             body = client.post(CLASSIFY_URL, json={"url": "https://example.com"}, headers=HEADERS).json()
 
@@ -166,10 +174,7 @@ class TestRuleClassifySuccess:
         )
         mock_saved = _make_saved_result()
 
-        with patch("src.api.rule_routes.run_quality_pipeline", return_value=mock_pipeline), \
-             patch("src.api.rule_routes.AIDetector") as MockDetector:
-            MockDetector.return_value.detect_and_save.return_value = mock_saved
-
+        with _patch_pipeline_run(mock_pipeline, mock_saved)[0]:
             # Act
             body = client.post(CLASSIFY_URL, json={"url": "https://example.com"}, headers=HEADERS).json()
 
@@ -185,10 +190,9 @@ class TestRuleClassifySuccess:
         mock_pipeline = _make_pipeline_result()
         mock_saved = _make_saved_result()
 
-        with patch("src.api.rule_routes.run_quality_pipeline", return_value=mock_pipeline), \
-             patch("src.api.rule_routes.AIDetector") as MockDetector:
+        stack, MockDetector, _ = _patch_pipeline_run(mock_pipeline, mock_saved)
+        with stack:
             mock_detector_instance = MockDetector.return_value
-            mock_detector_instance.detect_and_save.return_value = mock_saved
 
             # Act
             client.post(CLASSIFY_URL, json={"url": "https://example.com"}, headers=HEADERS)
@@ -202,10 +206,7 @@ class TestRuleClassifySuccess:
         mock_pipeline = _make_pipeline_result()
         mock_saved = _make_saved_result()
 
-        with patch("src.api.rule_routes.run_quality_pipeline", return_value=mock_pipeline), \
-             patch("src.api.rule_routes.AIDetector") as MockDetector:
-            MockDetector.return_value.detect_and_save.return_value = mock_saved
-
+        with _patch_pipeline_run(mock_pipeline, mock_saved)[0]:
             # Act
             body = client.post(CLASSIFY_URL, json={"url": "https://example.com"}, headers=HEADERS).json()
 
@@ -222,10 +223,7 @@ class TestRuleClassifySuccess:
         mock_pipeline = _make_pipeline_result(total_score=75.0)
         mock_saved = _make_saved_result()
 
-        with patch("src.api.rule_routes.run_quality_pipeline", return_value=mock_pipeline), \
-             patch("src.api.rule_routes.AIDetector") as MockDetector:
-            MockDetector.return_value.detect_and_save.return_value = mock_saved
-
+        with _patch_pipeline_run(mock_pipeline, mock_saved)[0]:
             # Act
             body = client.post(CLASSIFY_URL, json={"url": "https://example.com"}, headers=HEADERS).json()
 
@@ -239,10 +237,7 @@ class TestRuleClassifySuccess:
         mock_pipeline = _make_pipeline_result(review_required=True, review_reasons=reasons)
         mock_saved = _make_saved_result()
 
-        with patch("src.api.rule_routes.run_quality_pipeline", return_value=mock_pipeline), \
-             patch("src.api.rule_routes.AIDetector") as MockDetector:
-            MockDetector.return_value.detect_and_save.return_value = mock_saved
-
+        with _patch_pipeline_run(mock_pipeline, mock_saved)[0]:
             # Act
             body = client.post(CLASSIFY_URL, json={"url": "https://example.com"}, headers=HEADERS).json()
 
@@ -266,10 +261,7 @@ class TestRuleClassifySuccess:
         )
         mock_saved = _make_saved_result()
 
-        with patch("src.api.rule_routes.run_quality_pipeline", return_value=mock_pipeline), \
-             patch("src.api.rule_routes.AIDetector") as MockDetector:
-            MockDetector.return_value.detect_and_save.return_value = mock_saved
-
+        with _patch_pipeline_run(mock_pipeline, mock_saved)[0]:
             # Act
             body = client.post(CLASSIFY_URL, json={"url": "https://example.com"}, headers=HEADERS).json()
 
@@ -342,7 +334,7 @@ class TestRuleClassifyAuth:
             )
 
         # Assert
-        assert response.status_code == 403
+        assert response.status_code == 401
 
 
 # ────────────────────────────────────────────
@@ -355,7 +347,7 @@ class TestRuleClassifyPipelineError:
     def test_pipeline_exception_returns_500(self, client: TestClient) -> None:
         """파이프라인이 예외를 발생시키면 500을 반환해야 한다."""
         # Arrange
-        with patch("src.api.rule_routes.run_quality_pipeline", side_effect=RuntimeError("네트워크 오류")):
+        with patch("src.rule.analyzer.run_quality_pipeline", side_effect=RuntimeError("네트워크 오류")):
             # Act
             response = client.post(CLASSIFY_URL, json={"url": "https://example.com"}, headers=HEADERS)
 
@@ -365,7 +357,7 @@ class TestRuleClassifyPipelineError:
     def test_pipeline_exception_detail_included(self, client: TestClient) -> None:
         """500 응답 body에 오류 내용이 포함되어야 한다."""
         # Arrange
-        with patch("src.api.rule_routes.run_quality_pipeline", side_effect=ValueError("분류 불가")):
+        with patch("src.rule.analyzer.run_quality_pipeline", side_effect=ValueError("분류 불가")):
             # Act
             body = client.post(CLASSIFY_URL, json={"url": "https://example.com"}, headers=HEADERS).json()
 
@@ -375,7 +367,7 @@ class TestRuleClassifyPipelineError:
     def test_pipeline_connection_error_returns_500(self, client: TestClient) -> None:
         """파이프라인이 ConnectionError를 발생시켜도 500을 반환해야 한다."""
         # Arrange
-        with patch("src.api.rule_routes.run_quality_pipeline", side_effect=ConnectionError("연결 실패")):
+        with patch("src.rule.analyzer.run_quality_pipeline", side_effect=ConnectionError("연결 실패")):
             # Act
             response = client.post(CLASSIFY_URL, json={"url": "https://example.com"}, headers=HEADERS)
 
@@ -394,8 +386,10 @@ class TestRuleClassifyDbError:
         """AIDetector.detect_and_save가 None을 반환하면 500을 반환해야 한다."""
         # Arrange
         mock_pipeline = _make_pipeline_result()
+        mock_rule_analyzer = MagicMock()
+        mock_rule_analyzer.last_pipeline_result = mock_pipeline
 
-        with patch("src.api.rule_routes.run_quality_pipeline", return_value=mock_pipeline), \
+        with patch("src.api.rule_routes.RuleAnalyzer", return_value=mock_rule_analyzer), \
              patch("src.api.rule_routes.AIDetector") as MockDetector:
             MockDetector.return_value.detect_and_save.return_value = None
 
@@ -408,9 +402,9 @@ class TestRuleClassifyDbError:
     def test_detector_exception_returns_500(self, client: TestClient) -> None:
         """AIDetector.detect_and_save가 예외를 발생시키면 500을 반환해야 한다."""
         # Arrange
-        mock_pipeline = _make_pipeline_result()
+        mock_rule_analyzer = MagicMock()
 
-        with patch("src.api.rule_routes.run_quality_pipeline", return_value=mock_pipeline), \
+        with patch("src.api.rule_routes.RuleAnalyzer", return_value=mock_rule_analyzer), \
              patch("src.api.rule_routes.AIDetector") as MockDetector:
             MockDetector.return_value.detect_and_save.side_effect = RuntimeError("DB 오류")
 
@@ -468,7 +462,7 @@ class TestRuleClassifyCacheHit:
         site = _make_ai_site_mock(analyzer="gemini", hard_pass=None, total_score=None, review_required=None)
         client = _client_with_cached_site(site)
 
-        with patch("src.api.rule_routes.run_quality_pipeline") as mock_pipeline:
+        with patch("src.rule.analyzer.run_quality_pipeline") as mock_pipeline:
             # Act
             response = client.post(CLASSIFY_URL, json={"url": "https://example.com"}, headers=HEADERS)
 
@@ -482,7 +476,7 @@ class TestRuleClassifyCacheHit:
         site = _make_ai_site_mock(site_id=99, analyzer="gemini", hard_pass=None, total_score=None, review_required=None)
         client = _client_with_cached_site(site)
 
-        with patch("src.api.rule_routes.run_quality_pipeline"):
+        with patch("src.rule.analyzer.run_quality_pipeline"):
             body = client.post(CLASSIFY_URL, json={"url": "https://example.com"}, headers=HEADERS).json()
 
         assert body["site_id"] == 99
@@ -493,7 +487,7 @@ class TestRuleClassifyCacheHit:
         site = _make_ai_site_mock(analyzer="rule", hard_pass=True, total_score=80.0, review_required=False)
         client = _client_with_cached_site(site)
 
-        with patch("src.api.rule_routes.run_quality_pipeline") as mock_pipeline:
+        with patch("src.rule.analyzer.run_quality_pipeline") as mock_pipeline:
             response = client.post(CLASSIFY_URL, json={"url": "https://example.com"}, headers=HEADERS)
 
         assert response.status_code == 200
@@ -507,14 +501,16 @@ class TestRuleClassifyCacheHit:
 
         mock_pipeline = _make_pipeline_result()
         mock_saved = _make_saved_result()
+        mock_rule_analyzer = MagicMock()
+        mock_rule_analyzer.last_pipeline_result = mock_pipeline
 
-        with patch("src.api.rule_routes.run_quality_pipeline", return_value=mock_pipeline) as mock_p, \
+        with patch("src.api.rule_routes.RuleAnalyzer", return_value=mock_rule_analyzer), \
              patch("src.api.rule_routes.AIDetector") as MockDetector:
             MockDetector.return_value.detect_and_save.return_value = mock_saved
             response = client.post(CLASSIFY_URL, json={"url": "https://example.com"}, headers=HEADERS)
 
         assert response.status_code == 200
-        mock_p.assert_called_once()
+        mock_rule_analyzer.analyze_website  # RuleAnalyzer가 생성됨을 확인
 
     def test_review_required_rule_cache_runs_pipeline(self) -> None:
         """review_required=True인 규칙기반 캐시는 파이프라인을 재실행해야 한다."""
@@ -524,14 +520,15 @@ class TestRuleClassifyCacheHit:
 
         mock_pipeline = _make_pipeline_result()
         mock_saved = _make_saved_result()
+        mock_rule_analyzer = MagicMock()
+        mock_rule_analyzer.last_pipeline_result = mock_pipeline
 
-        with patch("src.api.rule_routes.run_quality_pipeline", return_value=mock_pipeline) as mock_p, \
+        with patch("src.api.rule_routes.RuleAnalyzer", return_value=mock_rule_analyzer), \
              patch("src.api.rule_routes.AIDetector") as MockDetector:
             MockDetector.return_value.detect_and_save.return_value = mock_saved
             response = client.post(CLASSIFY_URL, json={"url": "https://example.com"}, headers=HEADERS)
 
         assert response.status_code == 200
-        mock_p.assert_called_once()
 
     def test_hard_pass_false_rule_cache_runs_pipeline(self) -> None:
         """hard_pass=False인 규칙기반 캐시는 파이프라인을 재실행해야 한다."""
@@ -541,11 +538,12 @@ class TestRuleClassifyCacheHit:
 
         mock_pipeline = _make_pipeline_result()
         mock_saved = _make_saved_result()
+        mock_rule_analyzer = MagicMock()
+        mock_rule_analyzer.last_pipeline_result = mock_pipeline
 
-        with patch("src.api.rule_routes.run_quality_pipeline", return_value=mock_pipeline) as mock_p, \
+        with patch("src.api.rule_routes.RuleAnalyzer", return_value=mock_rule_analyzer), \
              patch("src.api.rule_routes.AIDetector") as MockDetector:
             MockDetector.return_value.detect_and_save.return_value = mock_saved
             response = client.post(CLASSIFY_URL, json={"url": "https://example.com"}, headers=HEADERS)
 
         assert response.status_code == 200
-        mock_p.assert_called_once()

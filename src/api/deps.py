@@ -1,7 +1,6 @@
 """FastAPI 의존성."""
 
 from fastapi import HTTPException, Header
-from src.db.session import get_db  # noqa: F401
 from src.core.config import get_api_key
 
 
