@@ -24,6 +24,24 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+_BATCH_ACCEPTED_MESSAGE = (
+    "{}건 분류를 백그라운드에서 시작했습니다. 완료 후 data/ 디렉토리에 결과 파일이 생성됩니다."
+)
+
+
+def _job_to_response(job: AnalysisJob) -> AnalysisJobResponse:
+    """AnalysisJob 모델을 AnalysisJobResponse 스키마로 변환한다."""
+    return AnalysisJobResponse(
+        job_id=job.job_id,
+        url=job.url,
+        status=job.status,
+        created_at=job.created_at,
+        started_at=job.started_at,
+        completed_at=job.completed_at,
+        retry_count=job.retry_count,
+        error_message=job.error_message,
+    )
+
 
 def _try_cache_hit(
     url: str,
@@ -52,16 +70,7 @@ def _try_cache_hit(
         )
         if job:
             logger.info("[analyze] 캐시 히트 (analyzer=%s): %s", existing.analyzer, url)
-            return AnalysisJobResponse(
-                job_id=job.job_id,
-                url=job.url,
-                status=job.status,
-                created_at=job.created_at,
-                started_at=job.started_at,
-                completed_at=job.completed_at,
-                retry_count=job.retry_count,
-                error_message=job.error_message,
-            )
+            return _job_to_response(job)
 
     if existing.analyzer in (None, "rule"):
         logger.info("[analyze] rule 분석 결과 → LLM 재분석 대상: %s", url)
@@ -126,16 +135,7 @@ def analyze(
         )
         db.add(job)
         db.flush()
-        responses.append(AnalysisJobResponse(
-            job_id=job.job_id,
-            url=job.url,
-            status=job.status,
-            created_at=job.created_at,
-            started_at=job.started_at,
-            completed_at=job.completed_at,
-            retry_count=job.retry_count,
-            error_message=job.error_message,
-        ))
+        responses.append(_job_to_response(job))
         pending_job_ids.append(str(job.job_id))
         pending_urls.append(url)
 
@@ -189,7 +189,7 @@ async def analyze_batch_upload(
     return BatchAnalysisResponse(
         total=len(urls),
         accepted=len(urls),
-        message=f"{len(urls)}건 분류를 백그라운드에서 시작했습니다. 완료 후 data/ 디렉토리에 결과 파일이 생성됩니다.",
+        message=_BATCH_ACCEPTED_MESSAGE.format(len(urls)),
     )
 
 
@@ -228,5 +228,5 @@ def analyze_batch_file(
     return BatchAnalysisResponse(
         total=len(urls),
         accepted=len(urls),
-        message=f"{len(urls)}건 분류를 백그라운드에서 시작했습니다. 완료 후 data/ 디렉토리에 결과 파일이 생성됩니다.",
+        message=_BATCH_ACCEPTED_MESSAGE.format(len(urls)),
     )
