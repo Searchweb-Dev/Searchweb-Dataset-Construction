@@ -11,7 +11,6 @@ from src.core.url import normalize_url
 from src.db.models import AISite
 from src.db.session import get_db
 from src.rule.analyzer import RuleAnalyzer
-from src.rule.pipeline import run_quality_pipeline
 from src.schemas.rule import CriterionResponse, RuleClassifyRequest, RuleClassifyResponse
 
 logger = logging.getLogger(__name__)
@@ -35,19 +34,17 @@ def _is_trustworthy_rule_cache(site: AISite) -> bool:
     )
 
 
-def _build_cached_response(site: AISite, url: str) -> RuleClassifyResponse:
+def _build_cached_response(site: AISite, input_url: str) -> RuleClassifyResponse:
     """DB에 저장된 AISite로부터 RuleClassifyResponse를 구성한다.
 
     criteria 상세 결과는 DB에 저장되지 않으므로 빈 dict로 반환한다.
     """
-    normalized = site.url
-    is_ai = site.is_ai_tool
-    final_status = "curated" if is_ai else "rejected"
+    final_status = "curated" if site.is_ai_tool else "rejected"
 
     return RuleClassifyResponse(
         site_id=site.site_id,
-        input_url=url,
-        normalized_url=normalized,
+        input_url=input_url,
+        normalized_url=site.url,
         predicted_status=final_status,
         final_status=final_status,
         passed_count=0,
@@ -112,23 +109,23 @@ def classify(
 
         logger.info("[rule/classify] 캐시 신뢰도 미달, 재분석: %s", url)
 
-    # 파이프라인 실행 (상세 결과 확보)
-    try:
-        pipeline_result = run_quality_pipeline(url)
-    except Exception as exc:
-        logger.exception("[rule/classify] 파이프라인 실행 실패: %s", url)
-        raise HTTPException(status_code=500, detail="분류 중 오류가 발생했습니다.") from exc
-
     # DB 저장 — RuleAnalyzer를 명시적으로 주입해 CLASSIFIER_MODE와 무관하게 규칙기반으로 저장
+    # analyze_website() 내부에서 run_quality_pipeline을 호출하므로 별도 호출 불필요
+    rule_analyzer = RuleAnalyzer()
     try:
-        detector = AIDetector(db, analyzer=RuleAnalyzer())
+        detector = AIDetector(db, analyzer=rule_analyzer)
         saved = detector.detect_and_save(url)
     except Exception as exc:
-        logger.exception("[rule/classify] DB 저장 실패: %s", url)
-        raise HTTPException(status_code=500, detail="저장 중 오류가 발생했습니다.") from exc
+        logger.exception("[rule/classify] 파이프라인/DB 저장 실패: %s", url)
+        raise HTTPException(status_code=500, detail="분류 중 오류가 발생했습니다.") from exc
 
     if saved is None:
         logger.error("[rule/classify] 저장 결과가 None: %s", url)
+        raise HTTPException(status_code=500, detail="분류 결과 저장에 실패했습니다.")
+
+    pipeline_result = rule_analyzer.last_pipeline_result
+    if pipeline_result is None:
+        logger.error("[rule/classify] pipeline_result 없음: %s", url)
         raise HTTPException(status_code=500, detail="분류 결과 저장에 실패했습니다.")
 
     criteria = {

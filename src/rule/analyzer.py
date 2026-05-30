@@ -150,6 +150,9 @@ class RuleAnalyzer:
     detector.py의 get_analyzer()에서 반환되며, LLM 분석기와 동일한 인터페이스를 구현한다.
     """
 
+    def __init__(self) -> None:
+        self.last_pipeline_result: EvaluationResult | None = None
+
     def analyze_website(self, url: str) -> dict[str, Any]:
         """단일 URL을 규칙기반 파이프라인으로 분석하고 분석 결과 dict를 반환한다.
 
@@ -174,6 +177,7 @@ class RuleAnalyzer:
         """
         logger.info("[RuleAnalyzer] 분석 시작: %s", url)
         result = run_quality_pipeline(url)
+        self.last_pipeline_result = result
         analysis = _map_to_analysis_dict(result, url)
         logger.info(
             "[RuleAnalyzer] 분석 완료: %s → is_ai_tool=%s, confidence=%.2f",
