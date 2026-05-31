@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import logging
 from typing import Any
-from urllib.parse import urlparse
 
 from src.rule.models import CriterionResult, EvaluationResult
 from src.rule.pipeline import run_quality_pipeline
+from src.rule.utils import get_domain
 
 logger = logging.getLogger(__name__)
 
@@ -32,15 +32,6 @@ _DEFAULT_CATEGORY = ("other", "general")
 def _map_primary_category(primary_category: str) -> tuple[str, str]:
     """primary_category 문자열을 (level_1, level_2) 튜플로 변환한다."""
     return _CATEGORY_MAP.get(primary_category, _DEFAULT_CATEGORY)
-
-
-def _extract_host(url: str) -> str:
-    """URL에서 호스트명을 추출한다. 실패 시 원본 URL을 반환한다."""
-    try:
-        parsed = urlparse(url)
-        return parsed.netloc or url
-    except Exception:
-        return url
 
 
 def _clamp_score(value: int, min_val: int = 1, max_val: int = 10) -> int:
@@ -69,7 +60,7 @@ def _map_to_analysis_dict(result: EvaluationResult, input_url: str) -> dict[str,
     if homepage_title:
         title = homepage_title
     else:
-        title = _extract_host(input_url) or _extract_host(result.normalized_url) or result.normalized_url
+        title = get_domain(input_url) or get_domain(result.normalized_url) or result.normalized_url
 
     one_line_summary = str(taxonomy.get("one_line_summary", "")).strip() if isinstance(taxonomy, dict) else ""
     if one_line_summary:

@@ -13,7 +13,7 @@ from src.rule.classifiers.ai_scope_classifier import AiScopeClassifierMixin
 from src.rule.classifiers.discovery_signals import DiscoverySignalMixin
 from src.rule.keywords import ACTION_KEYWORDS, DOCS_TEXT, GENERIC_MARKETING_PHRASES, NEGATIVE_USE_TEXT, POLICY_TEXT, POSITIVE_USE_TEXT, TASK_NOUNS
 from src.rule.fetchers.page_fetcher import PageFetcher
-from src.rule.models import ClearDescriptionLLM, CriterionResult, EvaluationResult, Evidence, FetchResult
+from src.rule.models import CriterionResult, EvaluationResult, Evidence, FetchResult
 from src.rule.classifiers.status_policy import StatusPolicyMixin
 from src.rule.classifiers.taxonomy_classifier import TaxonomyClassifierMixin
 from src.rule.utils import has_usable_url_hint, is_same_domain, keyword_hit, lower, normalize_url, snippet, split_sentences
@@ -21,6 +21,29 @@ from src.rule.utils import has_usable_url_hint, is_same_domain, keyword_hit, low
 logger = logging.getLogger(__name__)
 
 PipelineStep = Callable[[Any, dict[str, object]], None]
+
+
+class ClearDescriptionLLM:
+    """기능 설명 명확성 판정용 LLM 인터페이스."""
+
+    def evaluate(self, payload: dict[str, str]) -> dict[str, object]:
+        """입력 payload를 받아 기능 설명 판정 결과를 반환한다."""
+        raise NotImplementedError
+
+
+class DummyLLM(ClearDescriptionLLM):
+    """LLM 연동 전 테스트용 휴리스틱 스텁 구현체."""
+
+    def evaluate(self, payload: dict[str, str]) -> dict[str, object]:
+        """간단한 키워드 매칭으로 기능 설명 명확성을 추정한다."""
+        candidate = lower(payload.get("candidate_sentence", ""))
+        passed = any(k in candidate for k in ACTION_KEYWORDS) and any(k in candidate for k in TASK_NOUNS)
+        return {
+            "passed": passed,
+            "confidence": 0.72 if passed else 0.45,
+            "reason": "LLM 스텁 판정",
+            "summary": payload.get("candidate_sentence", ""),
+        }
 
 
 class CriteriaEvaluatorMixin:

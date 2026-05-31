@@ -6,8 +6,6 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 
-from src.rule.keywords import ACTION_KEYWORDS, TASK_NOUNS
-from src.rule.utils import lower
 
 
 @dataclass
@@ -95,24 +93,3 @@ class EvaluationResult:
         return out
 
 
-class ClearDescriptionLLM:
-    """기능 설명 명확성 판정용 LLM 인터페이스."""
-
-    def evaluate(self, payload: dict[str, str]) -> dict[str, object]:
-        """입력 payload를 받아 기능 설명 판정 결과를 반환한다."""
-        raise NotImplementedError
-
-
-class DummyLLM(ClearDescriptionLLM):
-    """LLM 연동 전 테스트용 휴리스틱 스텁 구현체."""
-
-    def evaluate(self, payload: dict[str, str]) -> dict[str, object]:
-        """간단한 키워드 매칭으로 기능 설명 명확성을 추정한다."""
-        candidate = lower(payload.get("candidate_sentence", ""))
-        passed = any(k in candidate for k in ACTION_KEYWORDS) and any(k in candidate for k in TASK_NOUNS)
-        return {
-            "passed": passed,
-            "confidence": 0.72 if passed else 0.45,
-            "reason": "LLM 스텁 판정",
-            "summary": payload.get("candidate_sentence", ""),
-        }
