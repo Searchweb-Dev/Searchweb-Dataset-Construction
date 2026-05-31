@@ -183,7 +183,7 @@ async def analyze_batch_upload(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    logger.info("[batch/upload] %d개 URL 접수 (파일: %s)", len(urls), file.filename)
+    logger.info("[batch/upload] 파일=%s, 추출된 URL=%d건 → Celery 태스크 전달", file.filename, len(urls))
     analyze_urls_bulk.delay(urls, force_reanalyze, file.filename)
 
     return BatchAnalysisResponse(
@@ -222,7 +222,7 @@ def analyze_batch_file(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    logger.info("[batch/file] %d개 URL 접수 (경로: %s)", len(urls), request.file_path)
+    logger.info("[batch/file] 경로=%s, 추출된 URL=%d건 → Celery 태스크 전달", request.file_path, len(urls))
     analyze_urls_bulk.delay(urls, request.force_reanalyze, request.file_path)
 
     return BatchAnalysisResponse(

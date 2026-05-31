@@ -321,12 +321,17 @@ def analyze_urls_bulk(urls: list[str], force_reanalyze: bool, source_path: str |
     if not urls:
         return {"analyzed": 0, "skipped": 0, "failed": 0, "output_path": None}
 
+    logger.info(
+        "[배치 시작] 총 %d건 수신 (source=%s, force_reanalyze=%s)",
+        len(urls), source_path or "unknown", force_reanalyze,
+    )
+
     checked_at = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
 
     pending_urls, skipped, job_id_map = prepare_bulk_urls(urls, force_reanalyze)
 
     logger.info(
-        "대상 판단 완료: 전체 %d건 → 분석 대상 %d건, 스킵 %d건 (force_reanalyze=%s)",
+        "[배치 대상 확정] 총 %d건 → 분석 대상 %d건, 스킵 %d건 (force_reanalyze=%s)",
         len(urls), len(pending_urls), skipped, force_reanalyze,
     )
 
