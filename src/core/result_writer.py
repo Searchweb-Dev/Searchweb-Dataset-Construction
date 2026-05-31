@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -24,11 +25,15 @@ def _favicon_url(url: str) -> str:
     return ""
 
 
+_TIMESTAMP_RE = re.compile(r"(_\d{8}_\d{6})+$")
+
+
 def _output_path(checked_at: str, source_path: str) -> str:
     """타임스탬프를 붙인 출력 파일 경로를 반환한다."""
     timestamp = checked_at.replace("-", "").replace("T", "_").replace(":", "")[:15]
     name, ext = os.path.splitext(os.path.basename(source_path))
-    return os.path.join(_DATA_DIR, f"{name}_{timestamp}{ext}")
+    base = _TIMESTAMP_RE.sub("", name)
+    return os.path.join(_DATA_DIR, f"{base}_{timestamp}{ext}")
 
 
 def _load_source(source_path: str) -> list[dict[str, Any]]:
