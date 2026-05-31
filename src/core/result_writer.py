@@ -81,6 +81,8 @@ def _to_failed_entry(url: str, error: str, checked_at: str) -> dict[str, Any]:
     }
 
 
+# batch/file이 미처리 항목을 자동 필터링하므로 현재 호출되지 않으나,
+# 수동 재처리 용도로 유지한다.
 def extract_unprocessed(result_path: str) -> str | None:
     """결과 파일에서 미처리 항목을 추출해 별도 JSON으로 저장한다.
 
