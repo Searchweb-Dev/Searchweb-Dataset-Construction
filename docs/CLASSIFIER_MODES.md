@@ -18,9 +18,9 @@ Gemini url_context 툴로 웹사이트를 분석한다.
   - time_limit: 300s, soft_time_limit: 240s
   - max_retries: 3회 (지수 백오프, 60s × N)
 
-### 2. 배치 분석: `analyze_urls_batch`
+### 2. 배치 병렬 분석: `analyze_urls_batch`
 
-- **엔드포인트**: `POST /api/v1/analyze/batch/upload`, `POST /api/v1/analyze/batch/file`
+- **엔드포인트**: `POST /api/v1/analyze` (urls 2개 이상 시 내부 디스패치)
 - **처리**: Celery 큐 `analyze` → `analyze_urls_batch` 태스크
 - **특징**:
   - ThreadPoolExecutor로 병렬 단건 LLM 분석 (동시 워커: `BATCH_CONCURRENCY`, 기본 5)
@@ -30,7 +30,7 @@ Gemini url_context 툴로 웹사이트를 분석한다.
 
 ### 3. 백그라운드 병렬 분석: `analyze_urls_bulk`
 
-- **처리**: 백그라운드 작업 (API 엔드포인트 없음, Python 내부 호출)
+- **엔드포인트**: `POST /api/v1/analyze/batch/upload`, `POST /api/v1/analyze/batch/file`
 - **파라미터**: `urls`, `force_reanalyze`, `source_path` (출력 파일명 기준)
 - **특징**:
   - ThreadPoolExecutor 병렬 단건 처리 (동시 워커: `BATCH_CONCURRENCY`, 기본 5)

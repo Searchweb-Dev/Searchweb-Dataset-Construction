@@ -395,9 +395,8 @@ sw-test/
 │   │   ├── __init__.py
 │   │   ├── prompts.py               # 프롬프트 상수 (SYSTEM_PROMPT, ANALYSIS_PROMPT)
 │   │   ├── analyzer.py              # LLM 프로바이더 팩토리
+│   │   ├── config.py                # LLM 관련 환경변수 (provider, api_key, model)
 │   │   ├── gemini_analyzer.py       # Gemini url_context 분석기
-│   │   ├── detector.py              # AI 판별 및 DB 저장 로직
-│   │   ├── mcp_tools.py             # (stub) 렌더링 도구 진입점
 │   │   └── _archive/
 │   │       └── _playwright_renderer.py  # (보존) Playwright 렌더링 (비활성)
 │   ├── rule/                            # 규칙기반 분류기 (CLASSIFIER_MODE=rule)
@@ -428,6 +427,7 @@ sw-test/
 │   ├── db/
 │   │   ├── __init__.py
 │   │   ├── session.py               # SQLAlchemy 세션
+│   │   ├── site_service.py          # AIDetector (AI 판별 및 DB 저장 로직)
 │   │   └── models/
 │   │       ├── base.py              # 모델 베이스 클래스
 │   │       ├── ai_site.py
