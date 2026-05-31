@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 
-from src.core.config import get_db_url
+from src.core.config import get_db_url, get_db_pool_timeout, get_db_pool_recycle
 
 _db_url = get_db_url()
 
@@ -25,8 +25,8 @@ else:
         pool_pre_ping=True,
         pool_size=10,
         max_overflow=20,
-        pool_timeout=30,
-        pool_recycle=1800,
+        pool_timeout=get_db_pool_timeout(),
+        pool_recycle=get_db_pool_recycle(),
     )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

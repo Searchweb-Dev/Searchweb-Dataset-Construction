@@ -13,6 +13,7 @@ load_dotenv()
 
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+worker_max_tasks_per_child = int(os.getenv("CELERY_MAX_TASKS_PER_CHILD", "1000"))
 
 app = Celery(__name__, include=["src.workers.analyze_task"])
 app.conf.update(
@@ -25,7 +26,7 @@ app.conf.update(
     enable_utc=True,
     task_track_started=True,
     worker_prefetch_multiplier=1,
-    worker_max_tasks_per_child=1000,
+    worker_max_tasks_per_child=worker_max_tasks_per_child,
     worker_loglevel=log_level,
 )
 
