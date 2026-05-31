@@ -14,7 +14,7 @@ from src.db.session import SessionLocal
 from src.ai.analyzer import get_llm_analyzer
 from src.db.site_service import AIDetector
 from src.workers.celery_app import app
-from src.core.result_writer import write_batch
+from src.core.result_writer import extract_unprocessed, write_batch
 from src.core.url import normalize_url
 from src.core.util import utc_now
 from src.core.error_policy import get_policy
@@ -512,7 +512,8 @@ def analyze_urls_bulk(urls: list[str], force_reanalyze: bool, source_path: str |
                 logger.warning("할당량 초과로 배치 조기 종료 — 스킵: %s", url)
                 failure_map[job_id] = "rate_limit_skip"
 
-    if rate_limit_event.is_set():
+    rate_limited = rate_limit_event.is_set()
+    if rate_limited:
         logger.warning(
             "API 할당량 초과로 배치 조기 종료: 분석 %d건 완료, %d건 미처리",
             len(batch_results),
@@ -526,6 +527,12 @@ def analyze_urls_bulk(urls: list[str], force_reanalyze: bool, source_path: str |
     url_by_job_id = {jid: u for u, jid in job_id_map.items()}
     failure_list = [(url_by_job_id[jid], err) for jid, err in failure_map.items() if jid in url_by_job_id]
     output_path = write_batch(batch_results, checked_at=checked_at, failures=failure_list, source_path=source_path)
+
+    # rate limit 조기 종료 시 미처리 항목을 별도 파일로 추출 (DB 저장 없음)
+    if rate_limited and output_path:
+        unprocessed_path = extract_unprocessed(output_path)
+        if unprocessed_path:
+            logger.info("미처리 항목 파일 생성: %s", unprocessed_path)
 
     failed = len(failure_map)
     logger.info(
