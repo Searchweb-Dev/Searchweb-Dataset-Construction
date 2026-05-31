@@ -8,6 +8,11 @@ from src.db.models import AISite, AICategory, AITag
 from src.db.models.ai_site import SITE_STATUS_BLOCKED, SITE_STATUS_OK
 from src.ai.analyzer import get_analyzer
 from src.core.exceptions import SiteUnreachableError
+from src.core.error_policy import (
+    RateLimitError, ApiTimeoutError, ApiServerUnavailableError,
+    ApiServerInternalError, ApiUnauthenticatedError,
+    ApiPermissionDeniedError, ApiPreconditionError, ApiNotFoundError,
+)
 from src.core.url import normalize_url
 from src.core.util import utc_now
 
@@ -63,7 +68,12 @@ class AIDetector:
                 "analyzer": analysis_result.get("analyzer"),
             }
 
-        except SiteUnreachableError:
+        except (
+            SiteUnreachableError,
+            RateLimitError, ApiTimeoutError, ApiServerUnavailableError,
+            ApiServerInternalError, ApiUnauthenticatedError,
+            ApiPermissionDeniedError, ApiPreconditionError, ApiNotFoundError,
+        ):
             self.db.rollback()
             raise
         except Exception as e:
