@@ -10,7 +10,7 @@ from google.genai import types
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 
 from src.core.config import get_gemini_model
-from src.core.error_policy import ApiErrorKind, classify_api_error
+from src.core.error_policy import ApiErrorKind, classify_api_error, get_policy
 from src.core.exceptions import (
     SiteUnreachableError,
     RateLimitError,
@@ -82,7 +82,6 @@ _BATCH_SCHEMA = {
 
 def _is_retryable(exc: BaseException) -> bool:
     """재시도 가능한 오류인지 판별한다."""
-    from src.core.error_policy import get_policy
     return get_policy(exc).retryable
 
 

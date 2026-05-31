@@ -1,17 +1,6 @@
-"""URL 정규화 및 판별 로직."""
+"""URL 정규화 로직."""
 
 from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
-
-_VIDEO_HOSTS: tuple[str, ...] = (
-    "youtube.com", "youtu.be", "vimeo.com", "dailymotion.com", "twitch.tv",
-)
-_DOC_EXTENSIONS: tuple[str, ...] = (
-    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-    ".txt", ".md", ".csv", ".json", ".xml",
-)
-_IMG_EXTENSIONS: tuple[str, ...] = (
-    ".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp", ".ico",
-)
 
 
 def normalize_url(url: str) -> str:
@@ -68,51 +57,3 @@ def normalize_url(url: str) -> str:
         return url.strip()
 
 
-def extract_domain(url: str) -> str | None:
-    """URL에서 도메인 추출."""
-    try:
-        parsed = urlparse(url.strip() if url else "")
-        netloc = parsed.netloc.lower() if parsed.netloc else ""
-
-        # www. 제거
-        if netloc.startswith("www."):
-            netloc = netloc[4:]
-
-        return netloc if netloc else None
-    except (ValueError, AttributeError):
-        return None
-
-
-def classify_url_type(url: str) -> str:
-    """URL 타입 분류: webpage, video, document, image, other."""
-    try:
-        parsed = urlparse(url.lower())
-        path = parsed.path.lower()
-
-        # 비디오 호스트
-        if any(host in parsed.netloc for host in _VIDEO_HOSTS):
-            return "video"
-
-        # 문서 확장자
-        if any(path.endswith(ext) for ext in _DOC_EXTENSIONS):
-            return "document"
-
-        # 이미지 확장자
-        if any(path.endswith(ext) for ext in _IMG_EXTENSIONS):
-            return "image"
-
-        return "webpage"
-    except (ValueError, AttributeError):
-        return "webpage"
-
-
-def extract_url_parts(url: str) -> tuple[str, str, str]:
-    """URL에서 scheme, netloc, path 추출."""
-    try:
-        parsed = urlparse(url.strip() if url else "")
-        scheme = parsed.scheme.lower() if parsed.scheme else "https"
-        netloc = parsed.netloc.lower() if parsed.netloc else ""
-        path = parsed.path
-        return scheme, netloc, path
-    except (ValueError, AttributeError):
-        return "", "", ""

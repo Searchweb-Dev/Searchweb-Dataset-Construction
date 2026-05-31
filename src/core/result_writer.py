@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from src.core.url import normalize_url as _normalize_url
+
 logger = logging.getLogger(__name__)
 
 _DATA_DIR = str(Path(__file__).parents[2] / "data")
@@ -20,11 +22,6 @@ def _favicon_url(url: str) -> str:
     if parsed.scheme and parsed.netloc:
         return f"{parsed.scheme}://{parsed.netloc}/favicon.ico"
     return ""
-
-
-def _normalize_url(url: str) -> str:
-    """비교용 URL 정규화 (trailing slash 제거, 소문자)."""
-    return url.rstrip("/").lower()
 
 
 def _output_path(checked_at: str, source_path: str) -> str:
