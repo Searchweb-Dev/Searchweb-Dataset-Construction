@@ -1,4 +1,4 @@
-"""LLM API 에러 코드별 처리 정책과 API 전용 예외 클래스 정의.
+"""LLM API 에러 코드별 처리 정책.
 
 에러 유형을 분류하고, 각 유형에 따라 어떤 예외를 발생시킬지 결정한다.
 새로운 에러 유형이 추가될 때 이 파일만 수정하면 된다.
@@ -24,51 +24,37 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-from src.core.exceptions import AnalysisError
+from src.core.exceptions import (
+    RateLimitError,
+    ApiServerError,
+    ApiServerUnavailableError,
+    ApiServerInternalError,
+    ApiAuthError,
+    ApiUnauthenticatedError,
+    ApiPermissionDeniedError,
+    ApiTimeoutError,
+    ApiPreconditionError,
+    ApiNotFoundError,
+)
 
-
-# ---------------------------------------------------------------------------
-# API 전용 예외 — ApiErrorKind와 1:1 대응
-# ---------------------------------------------------------------------------
-
-class RateLimitError(AnalysisError):
-    """API 할당량 초과 시 발생하는 예외 (429/RESOURCE_EXHAUSTED)."""
-
-
-class ApiServerError(AnalysisError):
-    """LLM API 서버 측 오류 (5xx) 기반 예외."""
-
-
-class ApiServerUnavailableError(ApiServerError):
-    """API 서버 일시 불가 예외 (503/UNAVAILABLE)."""
-
-
-class ApiServerInternalError(ApiServerError):
-    """API 서버 내부 오류 예외 (500/INTERNAL)."""
-
-
-class ApiAuthError(AnalysisError):
-    """API 인증/권한 오류 기반 예외."""
-
-
-class ApiUnauthenticatedError(ApiAuthError):
-    """API 인증 실패 예외 (401/UNAUTHENTICATED)."""
-
-
-class ApiPermissionDeniedError(ApiAuthError):
-    """API 권한 없음 예외 (403/PERMISSION_DENIED)."""
-
-
-class ApiTimeoutError(AnalysisError):
-    """API 요청 타임아웃 예외 (504/DEADLINE_EXCEEDED)."""
-
-
-class ApiPreconditionError(AnalysisError):
-    """API 사전 조건 미충족 예외 (400/FAILED_PRECONDITION)."""
-
-
-class ApiNotFoundError(AnalysisError):
-    """API 리소스 없음 예외 (404/NOT_FOUND). unreachable로 처리한다."""
+# 하위 호환을 위해 re-export
+__all__ = [
+    "RateLimitError",
+    "ApiServerError",
+    "ApiServerUnavailableError",
+    "ApiServerInternalError",
+    "ApiAuthError",
+    "ApiUnauthenticatedError",
+    "ApiPermissionDeniedError",
+    "ApiTimeoutError",
+    "ApiPreconditionError",
+    "ApiNotFoundError",
+    "ApiErrorKind",
+    "ErrorPolicy",
+    "POLICIES",
+    "classify_api_error",
+    "get_policy",
+]
 
 
 class ApiErrorKind(StrEnum):
@@ -102,7 +88,6 @@ class ErrorPolicy:
     site_status: str | None = None  # ai_site.status 설정값. None이면 ai_site 건드리지 않음
 
 
-# 에러 종류 → 처리 정책 매핑
 POLICIES: dict[ApiErrorKind, ErrorPolicy] = {
     ApiErrorKind.UNREACHABLE: ErrorPolicy(
         kind=ApiErrorKind.UNREACHABLE,
@@ -193,7 +178,6 @@ def classify_api_error(exc: BaseException) -> ApiErrorKind:
     Gemini SDK ClientError/ServerError의 .code와 .status를 우선 활용하고,
     그 외 예외는 문자열 패턴 매칭으로 폴백한다.
     """
-    # Gemini SDK 타입 기반 분류 (정확도 우선)
     try:
         from google.genai.errors import ClientError, ServerError
         if isinstance(exc, ClientError):
@@ -203,7 +187,6 @@ def classify_api_error(exc: BaseException) -> ApiErrorKind:
     except ImportError:
         pass
 
-    # 문자열 패턴 폴백
     return _classify_by_message(str(exc).lower())
 
 
@@ -219,7 +202,6 @@ def _classify_client_error(exc: object) -> ApiErrorKind:
     status: str = (getattr(exc, "status", "") or "").upper()
 
     if status == "INVALID_ARGUMENT" or code == 400:
-        # INVALID_ARGUMENT 중에서도 메시지로 FAILED_PRECONDITION 구분
         msg = str(exc).lower()
         if "failed_precondition" in msg or "precondition" in msg:
             return ApiErrorKind.PRECONDITION_FAILED
@@ -235,7 +217,6 @@ def _classify_client_error(exc: object) -> ApiErrorKind:
     if status == "RESOURCE_EXHAUSTED" or code == 429:
         return ApiErrorKind.RATE_LIMITED
 
-    # code 범위로 폴백
     if 400 <= code < 500:
         return _classify_by_message(str(exc).lower())
     return ApiErrorKind.UNKNOWN
@@ -253,7 +234,6 @@ def _classify_server_error(exc: object) -> ApiErrorKind:
     if status == "INTERNAL" or code == 500:
         return ApiErrorKind.SERVER_INTERNAL
 
-    # 5xx 범위면 일단 내부 오류로
     if 500 <= code < 600:
         return ApiErrorKind.SERVER_INTERNAL
     return ApiErrorKind.UNKNOWN
@@ -279,7 +259,6 @@ def _classify_by_message(msg: str) -> ApiErrorKind:
         return ApiErrorKind.SERVER_UNAVAILABLE
     if _matches(msg, ("internal", "500")):
         return ApiErrorKind.SERVER_INTERNAL
-    # 숫자 400은 가장 마지막에 — precondition/not_found보다 낮은 우선순위
     if "400" in msg:
         return ApiErrorKind.UNREACHABLE
 
