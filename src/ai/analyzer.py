@@ -3,7 +3,8 @@
 import logging
 from typing import Any
 
-from src.core.config import get_classifier_mode, get_llm_provider, get_gemini_api_key
+from src.core.config import get_classifier_mode
+from src.ai.config import get_llm_provider, get_gemini_api_key
 from src.ai.gemini_analyzer import GeminiAnalyzer
 
 logger = logging.getLogger(__name__)

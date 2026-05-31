@@ -6,7 +6,8 @@ from uuid import uuid4
 
 import pytest
 
-from src.core.exceptions import RateLimitError, SiteUnreachableError
+from src.core.exceptions import SiteUnreachableError
+from src.core.error_policy import RateLimitError
 from src.workers.analyze_task import _analyze_one
 
 

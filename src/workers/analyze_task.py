@@ -18,9 +18,8 @@ from src.core.result_writer import write_batch
 from src.core.url import normalize_url
 from src.core.util import utc_now
 from src.core.error_policy import get_policy
-from src.core.exceptions import (
-    AnalysisError,
-    SiteUnreachableError,
+from src.core.exceptions import AnalysisError, SiteUnreachableError
+from src.core.error_policy import (
     ApiNotFoundError,
     ApiPreconditionError,
     RateLimitError,

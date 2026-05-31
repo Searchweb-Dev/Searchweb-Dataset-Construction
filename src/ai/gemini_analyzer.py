@@ -9,10 +9,11 @@ from google import genai
 from google.genai import types
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 
-from src.core.config import get_gemini_model
-from src.core.error_policy import ApiErrorKind, classify_api_error, get_policy
-from src.core.exceptions import (
-    SiteUnreachableError,
+from src.ai.config import get_gemini_model
+from src.core.error_policy import (
+    ApiErrorKind,
+    classify_api_error,
+    get_policy,
     RateLimitError,
     ApiServerUnavailableError,
     ApiServerInternalError,
@@ -22,6 +23,7 @@ from src.core.exceptions import (
     ApiPreconditionError,
     ApiNotFoundError,
 )
+from src.core.exceptions import SiteUnreachableError
 from src.ai.prompts import SYSTEM_PROMPT, ANALYSIS_PROMPT, BATCH_ANALYSIS_PROMPT
 
 logger = logging.getLogger(__name__)
