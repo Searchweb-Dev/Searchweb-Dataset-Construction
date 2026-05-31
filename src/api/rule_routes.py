@@ -5,7 +5,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from src.ai.detector import AIDetector
+from src.db.site_service import AIDetector
 from src.api.deps import verify_api_key
 from src.core.url import normalize_url
 from src.db.models import AISite

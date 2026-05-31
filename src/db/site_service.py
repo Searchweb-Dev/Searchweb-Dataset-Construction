@@ -1,4 +1,4 @@
-"""AI 웹사이트 판별 및 분석 결과 저장 로직."""
+"""분석 결과를 DB에 영속화하는 서비스."""
 
 import logging
 from typing import Any
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class AIDetector:
-    """웹사이트 AI 판별 및 분석."""
+    """웹사이트 AI 판별 및 분석 결과 저장."""
 
     def __init__(self, db: Session, analyzer: Any = None):
         """AI 판별기 초기화.

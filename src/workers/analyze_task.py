@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 from src.db.models import AnalysisJob, AISite
 from src.db.session import SessionLocal
 from src.ai.analyzer import get_llm_analyzer
-from src.ai.detector import AIDetector
+from src.db.site_service import AIDetector
 from src.workers.celery_app import app
 from src.core.result_writer import write_batch
 from src.core.url import normalize_url

@@ -5,7 +5,7 @@ import pytest
 from datetime import datetime
 from sqlalchemy.orm import Session
 
-from src.ai.detector import AIDetector
+from src.db.site_service import AIDetector
 from src.db.models import AISite, AICategory, AITag
 
 
