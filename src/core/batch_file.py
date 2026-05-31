@@ -92,6 +92,9 @@ def _parse_json(content: bytes) -> list[str]:
             if isinstance(item, str):
                 urls.append(item.strip())
             elif isinstance(item, dict):
+                # is_ai_tool이 true/false로 이미 처리된 항목은 건너뜀
+                if item.get("is_ai_tool") is not None:
+                    continue
                 # {"link": "..."} 또는 {"url": "..."} 형태 지원
                 url = item.get("link") or item.get("url")
                 if url and isinstance(url, str):
