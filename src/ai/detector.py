@@ -90,40 +90,30 @@ class AIDetector:
         scores = analysis.get("scores", {})
         now = utc_now()
         site_status = SITE_STATUS_BLOCKED if analysis.get("anti_bot_blocked") else SITE_STATUS_OK
+        fields = {
+            "is_ai_tool": analysis["is_ai_tool"],
+            "title": analysis.get("title", ""),
+            "description": analysis.get("description", ""),
+            "score_utility": scores.get("utility", 0),
+            "score_trust": scores.get("trust", 0),
+            "score_originality": scores.get("originality", 0),
+            "analyzer": analysis.get("analyzer"),
+            "hard_pass": analysis.get("hard_pass"),
+            "total_score": analysis.get("total_score"),
+            "review_required": analysis.get("review_required"),
+            "last_analyzed_at": now,
+            "status": site_status,
+        }
 
         existing = self.db.query(AISite).filter(AISite.url == url).first()
         if existing:
-            existing.is_ai_tool = analysis["is_ai_tool"]
-            existing.title = analysis.get("title", "")
-            existing.description = analysis.get("description", "")
-            existing.score_utility = scores.get("utility", 0)
-            existing.score_trust = scores.get("trust", 0)
-            existing.score_originality = scores.get("originality", 0)
-            existing.analyzer = analysis.get("analyzer")
-            existing.hard_pass = analysis.get("hard_pass")
-            existing.total_score = analysis.get("total_score")
-            existing.review_required = analysis.get("review_required")
-            existing.last_analyzed_at = now
-            existing.status = site_status
+            for k, v in fields.items():
+                setattr(existing, k, v)
             existing.unreachable_since = None
             self.db.add(existing)
             return existing
 
-        site = AISite(
-            url=url,
-            is_ai_tool=analysis["is_ai_tool"],
-            title=analysis.get("title", ""),
-            description=analysis.get("description", ""),
-            score_utility=scores.get("utility", 0),
-            score_trust=scores.get("trust", 0),
-            score_originality=scores.get("originality", 0),
-            analyzer=analysis.get("analyzer"),
-            hard_pass=analysis.get("hard_pass"),
-            total_score=analysis.get("total_score"),
-            review_required=analysis.get("review_required"),
-            last_analyzed_at=now,
-            status=site_status,
-        )
+        site = AISite(url=url, **fields)
         self.db.add(site)
         self.db.flush()
         return site

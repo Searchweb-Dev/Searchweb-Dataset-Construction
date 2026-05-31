@@ -82,6 +82,19 @@ _BATCH_SCHEMA = {
 }
 
 
+_KIND_TO_EXC_CLS: dict[ApiErrorKind, tuple[type, str]] = {
+    ApiErrorKind.UNREACHABLE:         (SiteUnreachableError,       "사이트 접근 불가 (400)"),
+    ApiErrorKind.PRECONDITION_FAILED: (ApiPreconditionError,       "사전 조건 미충족 (400)"),
+    ApiErrorKind.NOT_FOUND:           (ApiNotFoundError,           "리소스 없음 (404)"),
+    ApiErrorKind.AUTH_ERROR:          (ApiUnauthenticatedError,    "API 인증 실패 (401)"),
+    ApiErrorKind.PERMISSION_DENIED:   (ApiPermissionDeniedError,   "API 권한 없음 (403)"),
+    ApiErrorKind.RATE_LIMITED:        (RateLimitError,             "API 할당량 초과 (429)"),
+    ApiErrorKind.TIMEOUT:             (ApiTimeoutError,            "API 타임아웃 (504)"),
+    ApiErrorKind.SERVER_UNAVAILABLE:  (ApiServerUnavailableError,  "API 서버 일시 불가 (503)"),
+    ApiErrorKind.SERVER_INTERNAL:     (ApiServerInternalError,     "API 서버 내부 오류 (500)"),
+}
+
+
 def _is_retryable(exc: BaseException) -> bool:
     """재시도 가능한 오류인지 판별한다."""
     return get_policy(exc).retryable
@@ -90,20 +103,9 @@ def _is_retryable(exc: BaseException) -> bool:
 def _raise_typed_error(exc: BaseException, url: str) -> None:
     """에러 종류에 따라 적절한 도메인 예외를 발생시킨다."""
     kind = classify_api_error(exc)
-    _KIND_TO_EXC = {
-        ApiErrorKind.UNREACHABLE:       (SiteUnreachableError,      f"사이트 접근 불가 (400): {url}"),
-        ApiErrorKind.PRECONDITION_FAILED: (ApiPreconditionError,    f"사전 조건 미충족 (400): {url}"),
-        ApiErrorKind.NOT_FOUND:         (ApiNotFoundError,          f"리소스 없음 (404): {url}"),
-        ApiErrorKind.AUTH_ERROR:        (ApiUnauthenticatedError,   f"API 인증 실패 (401): {url}"),
-        ApiErrorKind.PERMISSION_DENIED: (ApiPermissionDeniedError,  f"API 권한 없음 (403): {url}"),
-        ApiErrorKind.RATE_LIMITED:      (RateLimitError,            f"API 할당량 초과 (429): {url}"),
-        ApiErrorKind.TIMEOUT:           (ApiTimeoutError,           f"API 타임아웃 (504): {url}"),
-        ApiErrorKind.SERVER_UNAVAILABLE: (ApiServerUnavailableError, f"API 서버 일시 불가 (503): {url}"),
-        ApiErrorKind.SERVER_INTERNAL:   (ApiServerInternalError,    f"API 서버 내부 오류 (500): {url}"),
-    }
-    if kind in _KIND_TO_EXC:
-        exc_cls, msg = _KIND_TO_EXC[kind]
-        raise exc_cls(msg) from exc
+    if kind in _KIND_TO_EXC_CLS:
+        exc_cls, msg = _KIND_TO_EXC_CLS[kind]
+        raise exc_cls(f"{msg}: {url}") from exc
     raise exc
 
 
@@ -120,14 +122,7 @@ class GeminiAnalyzer:
         logger.info("[Gemini] 단건 분석 시작: %s", url)
         start_time = time.time()
         try:
-            response = self._generate_single(url)
-        except (
-            SiteUnreachableError, ApiPreconditionError, ApiNotFoundError,
-            ApiUnauthenticatedError, ApiPermissionDeniedError,
-            RateLimitError, ApiTimeoutError,
-            ApiServerUnavailableError, ApiServerInternalError,
-        ):
-            raise
+            response = self._generate(ANALYSIS_PROMPT.format(url=url), _SITE_SCHEMA)
         except Exception as exc:
             _raise_typed_error(exc, url)
         self._check_finish_reason(url, response)
@@ -163,7 +158,7 @@ class GeminiAnalyzer:
         url_list = "\n".join(f"{i}. {url}" for i, url in enumerate(urls, start=1))
         prompt = BATCH_ANALYSIS_PROMPT.format(url_list=url_list)
 
-        response = self._generate_batch(prompt)
+        response = self._generate(prompt, _BATCH_SCHEMA)
         self._check_finish_reason(",".join(urls), response)
 
         results = self._parse_batch(response, urls)
@@ -178,14 +173,6 @@ class GeminiAnalyzer:
                 url, result.get("is_ai_tool"), result.get("confidence", 0), result.get("title", ""),
             )
         return results
-
-    def _generate_single(self, url: str) -> Any:
-        """단건 분석."""
-        return self._generate(ANALYSIS_PROMPT.format(url=url), _SITE_SCHEMA)
-
-    def _generate_batch(self, prompt: str) -> Any:
-        """배치 분석."""
-        return self._generate(prompt, _BATCH_SCHEMA)
 
     @retry(
         retry=retry_if_exception(_is_retryable),
