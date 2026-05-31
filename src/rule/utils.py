@@ -68,6 +68,44 @@ def keyword_hit_count(text: str, keywords: set[str], normalized: bool = False) -
     return sum(1 for k in keywords if k in t)
 
 
+def collect_keyword_hits(text_blob: str, keywords: set[str]) -> set[str]:
+    """키워드 집합 중 텍스트 블롭에 매칭된 항목을 반환한다.
+
+    단일 알파벳 단어는 단어 경계 패턴으로, 나머지는 부분 문자열로 검사한다.
+    """
+    hits: set[str] = set()
+    for raw_keyword in keywords:
+        keyword = lower(raw_keyword)
+        if not keyword:
+            continue
+        if keyword.isalpha():
+            pattern = rf"(?<![a-z0-9]){re.escape(keyword)}(?![a-z0-9])"
+            if re.search(pattern, text_blob):
+                hits.add(raw_keyword)
+        elif keyword in text_blob:
+            hits.add(raw_keyword)
+    return hits
+
+
+def count_keyword_hits_bounded(text_blob: str, keywords: set[str]) -> int:
+    """키워드 집합 중 텍스트에 매칭된 개수를 센다.
+
+    짧은(4자 이하) 단일 알파벳 단어는 단어 경계 패턴으로 검사한다.
+    """
+    count = 0
+    for raw_keyword in keywords:
+        keyword = lower(raw_keyword)
+        if not keyword:
+            continue
+        if len(keyword) <= 4 and keyword.isalpha():
+            pattern = rf"(?<![a-z0-9]){re.escape(keyword)}(?![a-z0-9])"
+            if re.search(pattern, text_blob):
+                count += 1
+        elif keyword in text_blob:
+            count += 1
+    return count
+
+
 def split_sentences(text: str) -> list[str]:
     """문단 텍스트를 문장 단위 리스트로 분리한다."""
     text = squash_ws(text)

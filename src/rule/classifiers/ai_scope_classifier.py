@@ -14,7 +14,7 @@ from src.rule.keywords import (
     NON_AI_SITE_WEAK_KEYWORDS,
 )
 from src.rule.models import FetchResult
-from src.rule.utils import get_domain, lower
+from src.rule.utils import collect_keyword_hits, get_domain, lower
 
 logger = logging.getLogger(__name__)
 
@@ -42,10 +42,10 @@ class AiScopeClassifierMixin:
     def _infer_ai_site_scope(self, text_blob: str, homepage: FetchResult) -> dict[str, object]:
         """수집 텍스트를 기반으로 평가 대상이 AI 사이트인지 판별한다."""
         normalized_blob = lower(text_blob)
-        strong_ai_hits = self._collect_keyword_hits(normalized_blob, AI_SITE_STRONG_KEYWORDS)
-        weak_ai_hits = self._collect_keyword_hits(normalized_blob, AI_SITE_WEAK_KEYWORDS)
-        strong_non_ai_hits = self._collect_keyword_hits(normalized_blob, NON_AI_SITE_STRONG_KEYWORDS)
-        weak_non_ai_hits = self._collect_keyword_hits(normalized_blob, NON_AI_SITE_WEAK_KEYWORDS)
+        strong_ai_hits = collect_keyword_hits(normalized_blob, AI_SITE_STRONG_KEYWORDS)
+        weak_ai_hits = collect_keyword_hits(normalized_blob, AI_SITE_WEAK_KEYWORDS)
+        strong_non_ai_hits = collect_keyword_hits(normalized_blob, NON_AI_SITE_STRONG_KEYWORDS)
+        weak_non_ai_hits = collect_keyword_hits(normalized_blob, NON_AI_SITE_WEAK_KEYWORDS)
         non_ai_hits = strong_non_ai_hits | weak_non_ai_hits
         if re.search(r"(?<![a-z0-9])ai(?![a-z0-9])", normalized_blob):
             weak_ai_hits.add("ai")
@@ -144,18 +144,3 @@ class AiScopeClassifierMixin:
             "ai_non_ai_margin": ai_non_ai_margin,
         }
 
-    def _collect_keyword_hits(self, text_blob: str, keywords: set) -> set:
-        """키워드 집합 중 매칭된 항목을 반환한다."""
-        hits: set = set()
-        for raw_keyword in keywords:
-            keyword = lower(raw_keyword)
-            if not keyword:
-                continue
-            if keyword.isalpha():
-                pattern = rf"(?<![a-z0-9]){re.escape(keyword)}(?![a-z0-9])"
-                if re.search(pattern, text_blob):
-                    hits.add(raw_keyword)
-                continue
-            if keyword in text_blob:
-                hits.add(raw_keyword)
-        return hits

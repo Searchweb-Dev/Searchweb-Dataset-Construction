@@ -173,9 +173,8 @@ class DiscoverySignalMixin:
             or mass_403_blocked
         )
 
-        fetcher = getattr(self, "fetcher", None)
-        playwright_enabled = getattr(fetcher, "playwright_enabled", False)
-        playwright_disabled_reason = getattr(fetcher, "playwright_disabled_reason", None)
+        playwright_enabled = getattr(self.fetcher, "playwright_enabled", False)
+        playwright_disabled_reason = getattr(self.fetcher, "playwright_disabled_reason", None)
 
         return {
             "homepage_accessible": homepage.ok,

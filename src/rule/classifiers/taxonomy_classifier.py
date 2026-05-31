@@ -15,7 +15,7 @@ from src.rule.keywords import (
     SUBTASK_KEYWORDS_BY_PRIMARY,
 )
 from src.rule.models import FetchResult
-from src.rule.utils import keyword_hit, keyword_hit_count, lower, snippet, split_sentences
+from src.rule.utils import count_keyword_hits_bounded, keyword_hit, keyword_hit_count, lower, snippet, split_sentences
 
 logger = logging.getLogger(__name__)
 
@@ -158,22 +158,6 @@ class TaxonomyClassifierMixin:
             return "free"
         return "unknown"
 
-    def _platform_keyword_hit_count(self, text_blob: str, keywords: set) -> int:
-        """플랫폼 키워드 집합이 본문에서 실제로 몇 개 매칭되는지 계산한다."""
-        count = 0
-        for raw_keyword in keywords:
-            keyword = lower(raw_keyword)
-            if not keyword:
-                continue
-            if len(keyword) <= 4 and keyword.isalpha():
-                pattern = rf"(?<![a-z0-9]){re.escape(keyword)}(?![a-z0-9])"
-                if re.search(pattern, text_blob):
-                    count += 1
-                continue
-            if keyword in text_blob:
-                count += 1
-        return count
-
     def _infer_platforms(self, text_blob: str, has_api: bool, pages: list[FetchResult]) -> list[str]:
         """플랫폼 키워드/URL 신호를 결합해 지원 플랫폼 목록을 추정한다."""
         normalized_blob = lower(text_blob)
@@ -185,8 +169,7 @@ class TaxonomyClassifierMixin:
         for platform, keywords in PLATFORM_KEYWORDS.items():
             if platform == "api":
                 continue
-            hit_count = self._platform_keyword_hit_count(normalized_blob, keywords)
-            if hit_count > 0:
+            if count_keyword_hits_bounded(normalized_blob, keywords) > 0:
                 found.add(platform)
 
         url_blob = lower(" ".join(p.final_url for p in pages))

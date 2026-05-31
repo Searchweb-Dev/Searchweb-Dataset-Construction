@@ -11,7 +11,7 @@ from typing import Any, Callable, Iterable
 from src.rule.config import EvalConfig
 from src.rule.classifiers.ai_scope_classifier import AiScopeClassifierMixin
 from src.rule.classifiers.discovery_signals import DiscoverySignalMixin
-from src.rule.keywords import ACTION_KEYWORDS, DOCS_TEXT, GENERIC_MARKETING_PHRASES, POLICY_TEXT, TASK_NOUNS
+from src.rule.keywords import ACTION_KEYWORDS, DOCS_TEXT, GENERIC_MARKETING_PHRASES, NEGATIVE_USE_TEXT, POLICY_TEXT, POSITIVE_USE_TEXT, TASK_NOUNS
 from src.rule.fetchers.page_fetcher import PageFetcher
 from src.rule.models import ClearDescriptionLLM, CriterionResult, EvaluationResult, Evidence, FetchResult
 from src.rule.classifiers.status_policy import StatusPolicyMixin
@@ -103,8 +103,6 @@ class CriteriaEvaluatorMixin:
 
     def _eval_usable_now(self, homepage: FetchResult, all_pages: dict[str, FetchResult], extracted: dict[str, object]) -> CriterionResult:
         """즉시 사용 가능 경로(가입/로그인/설치/실행) 존재 여부를 평가한다."""
-        from src.rule.keywords import NEGATIVE_USE_TEXT, POSITIVE_USE_TEXT
-
         evidence: list[Evidence] = []
         usable_pages = [p for p in all_pages.values() if p.ok]
         if homepage.ok:
