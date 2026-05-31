@@ -3,9 +3,6 @@
 from sqlalchemy import Column, BigInteger, String, Boolean, Text, Integer, Float, DateTime, CheckConstraint
 from .base import BaseModel
 
-# 접근 불가 URL 재시도 대기 기간 (초). 이 기간이 지나면 재분석 대상으로 전환된다.
-UNREACHABLE_TTL_SECONDS = 7 * 24 * 3600
-
 # ai_site.status 허용 값
 SITE_STATUS_OK = "ok"
 SITE_STATUS_UNREACHABLE = "unreachable"

@@ -10,6 +10,7 @@ from src.core.url import normalize_url
 from src.core.util import utc_now
 from src.workers.job_status import is_failed_analysis
 from src.db.models.ai_site import SITE_STATUS_UNREACHABLE
+from src.core.config import get_unreachable_ttl_seconds
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
@@ -17,12 +18,11 @@ logger = logging.getLogger(__name__)
 
 def _is_unreachable_blocked(site: AISite) -> bool:
     """접근 불가 TTL 이내인지 확인한다."""
-    from src.db.models.ai_site import UNREACHABLE_TTL_SECONDS
     if site.status != SITE_STATUS_UNREACHABLE or site.unreachable_since is None:
         return False
     now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
     elapsed = (now_naive - site.unreachable_since).total_seconds()
-    return elapsed < UNREACHABLE_TTL_SECONDS
+    return elapsed < get_unreachable_ttl_seconds()
 
 
 def prepare_bulk_urls(

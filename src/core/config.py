@@ -41,6 +41,25 @@ def get_allowed_origins() -> tuple[str, ...]:
     return tuple(o.strip() for o in raw.split(",") if o.strip())
 
 
+@lru_cache
+def get_db_pool_timeout() -> int:
+    """DB 커넥션 풀 획득 대기 타임아웃(초) 반환."""
+    return int(os.getenv("DB_POOL_TIMEOUT", "30"))
+
+
+@lru_cache
+def get_db_pool_recycle() -> int:
+    """DB 커넥션 재사용 최대 수명(초) 반환."""
+    return int(os.getenv("DB_POOL_RECYCLE", "1800"))
+
+
+@lru_cache
+def get_unreachable_ttl_seconds() -> int:
+    """접근 불가 URL 재시도 대기 기간(초) 반환."""
+    days = int(os.getenv("UNREACHABLE_TTL_DAYS", "7"))
+    return days * 24 * 3600
+
+
 def get_classifier_mode() -> str:
     """CLASSIFIER_MODE 환경변수를 읽어 분류기 모드를 반환한다.
 

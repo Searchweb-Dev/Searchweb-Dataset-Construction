@@ -8,7 +8,13 @@ from google import genai
 from google.genai import types
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 
-from src.ai.config import get_gemini_model
+from src.ai.config import (
+    get_gemini_model,
+    get_gemini_retry_multiplier,
+    get_gemini_retry_min_wait,
+    get_gemini_retry_max_wait,
+    get_gemini_retry_attempts,
+)
 from src.ai.response_parser import (
     parse_single,
     parse_batch,
@@ -173,8 +179,12 @@ class GeminiAnalyzer:
 
     @retry(
         retry=retry_if_exception(_is_retryable),
-        wait=wait_exponential(multiplier=1, min=2, max=30),
-        stop=stop_after_attempt(2),
+        wait=wait_exponential(
+            multiplier=get_gemini_retry_multiplier(),
+            min=get_gemini_retry_min_wait(),
+            max=get_gemini_retry_max_wait(),
+        ),
+        stop=stop_after_attempt(get_gemini_retry_attempts()),
         reraise=True,
     )
     def _generate(self, contents: str, schema: dict) -> Any:
