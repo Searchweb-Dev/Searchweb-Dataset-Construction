@@ -396,7 +396,8 @@ sw-test/
 │   │   ├── prompts.py               # 프롬프트 상수 (SYSTEM_PROMPT, ANALYSIS_PROMPT)
 │   │   ├── analyzer.py              # LLM 프로바이더 팩토리
 │   │   ├── config.py                # LLM 관련 환경변수 (provider, api_key, model)
-│   │   ├── gemini_analyzer.py       # Gemini url_context 분석기
+│   │   ├── gemini_analyzer.py       # Gemini url_context 분석기 (API 호출 및 오케스트레이션)
+│   │   ├── response_parser.py       # Gemini 응답 파싱 및 품질 필드 계산 헬퍼
 │   │   └── _archive/
 │   │       └── _playwright_renderer.py  # (보존) Playwright 렌더링 (비활성)
 │   ├── rule/                            # 규칙기반 분류기 (CLASSIFIER_MODE=rule)
@@ -405,7 +406,10 @@ sw-test/
 │   │   ├── pipeline.py                  # 8단계 파이프라인 함수 및 run_quality_pipeline()
 │   │   ├── config.py                    # EvalConfig (파라미터 제어)
 │   │   ├── models.py                    # EvaluationResult, CriterionResult, FetchResult, Evidence
-│   │   ├── keywords.py                  # 키워드 상수 (AI_SITE_*, DOCS_*, POLICY_* 등)
+│   │   ├── keywords.py                  # 키워드 상수 re-export (하위 호환)
+│   │   ├── keywords_ai.py               # AI/비AI 판별 키워드 (POSITIVE_USE_TEXT, AI_SITE_* 등)
+│   │   ├── keywords_category.py         # 카테고리/서브태스크/메타 키워드 상수
+│   │   ├── keywords_platform.py         # 플랫폼 감지 키워드 (PLATFORM_KEYWORDS)
 │   │   ├── utils.py                     # URL/텍스트 처리 헬퍼 함수
 │   │   ├── fetchers/
 │   │   │   ├── __init__.py
@@ -420,10 +424,12 @@ sw-test/
 │   ├── workers/
 │   │   ├── __init__.py
 │   │   ├── celery_app.py            # Celery 앱 초기화 (큐, 라우팅, 설정)
-│   │   └── analyze_task.py          # 3개 분석 태스크
-│   │       ├── analyze_url(job_id, url) — 단건 분석
-│   │       ├── analyze_urls_batch(job_ids[], urls[]) — 배치 병렬 단건 분석
-│   │       └── analyze_urls_bulk(urls[], force_reanalyze, source_path=None) — 백그라운드 병렬 분석
+│   │   ├── analyze_task.py          # 3개 분석 태스크 (Celery task 진입점만 담당)
+│   │   │   ├── analyze_url(job_id, url) — 단건 분석
+│   │   │   ├── analyze_urls_batch(job_ids[], urls[]) — 배치 병렬 단건 분석
+│   │   │   └── analyze_urls_bulk(urls[], force_reanalyze, source_path=None) — 백그라운드 병렬 분석
+│   │   ├── job_status.py            # Job/AISite DB 상태 갱신 헬퍼 (mark_site_status, update_job_statuses)
+│   │   └── bulk_preflight.py        # bulk 분석 사전 판별 (스킵 대상 필터링 및 Job 레코드 생성)
 │   ├── db/
 │   │   ├── __init__.py
 │   │   ├── session.py               # SQLAlchemy 세션
@@ -443,8 +449,8 @@ sw-test/
 │       ├── __init__.py
 │       ├── config.py                # 환경 변수 설정 (@lru_cache 적용)
 │       ├── enums.py                 # JobStatus 열거형
-│       ├── exceptions.py            # 도메인 예외 (세분화된 예외 계층)
-│       ├── error_policy.py          # LLM API 에러 유형 분류 및 처리 정책
+│       ├── exceptions.py            # 도메인 예외 계층 (AnalysisError, SiteUnreachableError, API 전용 예외 포함)
+│       ├── error_policy.py          # LLM API 에러 유형 분류 및 처리 정책 (ApiErrorKind, ErrorPolicy, POLICIES)
 │       ├── url.py                   # URL 정규화 및 판별
 │       ├── util.py                  # 공통 유틸리티
 │       ├── batch_file.py            # 배치 파일 URL 추출 (path traversal 방지)
