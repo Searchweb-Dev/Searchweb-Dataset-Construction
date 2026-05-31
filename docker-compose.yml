@@ -60,6 +60,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.worker
+    user: "${UID:-1000}:${GID:-1000}"
     environment:
       DATABASE_URL: postgresql://ai_detector:${POSTGRES_PASSWORD}@postgres:5432/ai_detector
       REDIS_URL: redis://redis:6379/0
