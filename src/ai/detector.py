@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 from src.db.models import AISite, AICategory, AITag
 from src.db.models.ai_site import SITE_STATUS_BLOCKED, SITE_STATUS_OK
 from src.ai.analyzer import get_analyzer
-from src.core.config import get_llm_provider
 from src.core.exceptions import SiteUnreachableError
 from src.core.url import normalize_url
 from src.core.util import utc_now
@@ -32,7 +31,7 @@ class AIDetector:
         """웹사이트를 분석하고 결과를 DB에 저장."""
         try:
             url = normalize_url(url)
-            logger.info("%s 분석 시작: %s", get_llm_provider(), url)
+            logger.info("분석 시작: %s", url)
             analysis_result = self.analyzer.analyze_website(url=url)
 
             if not self._validate_analysis(analysis_result):
@@ -77,7 +76,7 @@ class AIDetector:
         required_fields = ["is_ai_tool", "title", "description", "confidence"]
         for field in required_fields:
             if field not in analysis:
-                logger.warning(f"필수 필드 누락: {field}")
+                logger.warning("필수 필드 누락: %s", field)
                 return False
 
         if not isinstance(analysis["confidence"], (int, float)) or not 0 <= analysis["confidence"] <= 1:

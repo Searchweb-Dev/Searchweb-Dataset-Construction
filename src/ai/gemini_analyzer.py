@@ -178,24 +178,13 @@ class GeminiAnalyzer:
             )
         return results
 
-    @retry(
-        retry=retry_if_exception(_is_retryable),
-        wait=wait_exponential(multiplier=1, min=2, max=30),
-        stop=stop_after_attempt(2),
-        reraise=True,
-    )
     def _generate_single(self, url: str) -> Any:
-        """단건 분석 — 503/429 시 지수 백오프 재시도."""
-        return self.client.models.generate_content(
-            model=self.model,
-            contents=ANALYSIS_PROMPT.format(url=url),
-            config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
-                tools=[types.Tool(url_context=types.UrlContext())],
-                response_mime_type="application/json",
-                response_schema=_SITE_SCHEMA,
-            ),
-        )
+        """단건 분석."""
+        return self._generate(ANALYSIS_PROMPT.format(url=url), _SITE_SCHEMA)
+
+    def _generate_batch(self, prompt: str) -> Any:
+        """배치 분석."""
+        return self._generate(prompt, _BATCH_SCHEMA)
 
     @retry(
         retry=retry_if_exception(_is_retryable),
@@ -203,16 +192,16 @@ class GeminiAnalyzer:
         stop=stop_after_attempt(2),
         reraise=True,
     )
-    def _generate_batch(self, prompt: str) -> Any:
-        """배치 분석 — 503/429 시 지수 백오프 재시도."""
+    def _generate(self, contents: str, schema: dict) -> Any:
+        """503/429 시 지수 백오프 재시도."""
         return self.client.models.generate_content(
             model=self.model,
-            contents=prompt,
+            contents=contents,
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT,
                 tools=[types.Tool(url_context=types.UrlContext())],
                 response_mime_type="application/json",
-                response_schema=_BATCH_SCHEMA,
+                response_schema=schema,
             ),
         )
 
