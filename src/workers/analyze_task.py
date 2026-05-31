@@ -116,9 +116,9 @@ def analyze_url(self, job_id: str, url: str) -> dict[str, Any]:
         policy = get_policy(e)
         logger.warning("%s — %s 기록: %s", policy.description, policy.site_status, url)
         db.rollback()
-        db.expire_all()
-        mark_site_status(db, url, policy.site_status)
+        mark_site_status(url, policy.site_status)
 
+        db.expire_all()
         job = db.query(AnalysisJob).filter(AnalysisJob.job_id == job_id).first()
         if job:
             job.status = JobStatus.FAILED
@@ -157,8 +157,8 @@ def analyze_url(self, job_id: str, url: str) -> dict[str, Any]:
         policy = get_policy(e)
         logger.error("%s — 재시도 불가, 즉시 실패: %s", policy.description, url)
         db.rollback()
+        mark_site_status(url, policy.site_status)
         db.expire_all()
-        mark_site_status(db, url, policy.site_status)
 
         job = db.query(AnalysisJob).filter(AnalysisJob.job_id == job_id).first()
         if job:
@@ -185,7 +185,7 @@ def analyze_url(self, job_id: str, url: str) -> dict[str, Any]:
             else:
                 job.status = JobStatus.FAILED
                 job.completed_at = utc_now()
-                mark_site_status(db, url, SITE_STATUS_FAILURE)
+                mark_site_status(url, SITE_STATUS_FAILURE)
                 logger.error("최종 실패: %s", job_id)
 
             db.commit()
@@ -238,17 +238,20 @@ def analyze_urls_batch(self, job_ids: list[str], urls: list[str]) -> dict[str, A
             executor.submit(_analyze_one, url, job_id_map[url]): url
             for url in urls
         }
-        for future in futures:
-            done_url, job_id, result, error = future.result()
-            if error:
-                logger.error("배치 항목 분석 실패: %s (%s)", done_url, error)
-                failure_map[job_id] = error
-            else:
-                success_map[job_id] = result.get("site_id") if result else None
-                logger.info(
-                    "항목 분류 완료: %s | is_ai_tool=%s",
-                    done_url, result.get("is_ai_tool") if result else None,
-                )
+        remaining = set(futures)
+        while remaining:
+            done, remaining = wait(remaining, return_when=FIRST_COMPLETED)
+            for future in done:
+                done_url, job_id, result, error = future.result()
+                if error:
+                    logger.error("배치 항목 분석 실패: %s (%s)", done_url, error)
+                    failure_map[job_id] = error
+                else:
+                    success_map[job_id] = result.get("site_id") if result else None
+                    logger.info(
+                        "항목 분류 완료: %s | is_ai_tool=%s",
+                        done_url, result.get("is_ai_tool") if result else None,
+                    )
 
     update_job_statuses(success_map, failure_map)
 
@@ -256,6 +259,20 @@ def analyze_urls_batch(self, job_ids: list[str], urls: list[str]) -> dict[str, A
     failed = len(failure_map)
     logger.info("배치 분류 task 완료: 성공=%d 실패=%d 전체=%d", success, failed, len(urls))
     return {"success": success, "failed": failed, "total": len(urls)}
+
+
+def _mark_jobs_processing(job_ids: list[UUID]) -> None:
+    """Job 목록을 PROCESSING 상태로 일괄 전환한다."""
+    db = SessionLocal()
+    now = utc_now()
+    try:
+        db.query(AnalysisJob).filter(AnalysisJob.job_id.in_(job_ids)).update(
+            {"status": JobStatus.PROCESSING, "started_at": now},
+            synchronize_session=False,
+        )
+        db.commit()
+    finally:
+        db.close()
 
 
 def _analyze_one(
@@ -283,7 +300,7 @@ def _analyze_one(
     except (SiteUnreachableError, ApiNotFoundError) as e:
         policy = get_policy(e)
         logger.warning("%s — %s 기록: %s", policy.description, policy.site_status, url)
-        mark_site_status(db, url, policy.site_status)
+        mark_site_status(url, policy.site_status)
         return url, job_id, None, policy.site_status
     except RateLimitError as e:
         policy = get_policy(e)
@@ -298,7 +315,7 @@ def _analyze_one(
     except (ApiUnauthenticatedError, ApiPermissionDeniedError, ApiPreconditionError) as e:
         policy = get_policy(e)
         logger.error("%s: %s", policy.description, url)
-        mark_site_status(db, url, policy.site_status)
+        mark_site_status(url, policy.site_status)
         return url, job_id, None, str(e)
     except Exception as e:
         return url, job_id, None, str(e)
@@ -338,6 +355,8 @@ def analyze_urls_bulk(urls: list[str], force_reanalyze: bool, source_path: str |
     if not pending_urls:
         logger.info("배치 완료: 분석 0건, 스킵 %d건, 실패 0건", skipped)
         return {"analyzed": 0, "skipped": skipped, "failed": 0, "output_path": None}
+
+    _mark_jobs_processing(list(job_id_map.values()))
 
     batch_results: list[tuple[str, dict[str, Any]]] = []
     success_map: dict[UUID, int | None] = {}

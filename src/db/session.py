@@ -4,19 +4,20 @@ from typing import Generator
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import NullPool, StaticPool
 
 from src.core.config import get_db_url
 
 _db_url = get_db_url()
 
 if _db_url.startswith("sqlite"):
-    # SQLite: 멀티스레드 환경에서 same-thread 제약 해제
+    # SQLite: 멀티스레드 환경에서 same-thread 제약 해제.
+    # StaticPool은 연결 1개를 공유해 병렬 쓰기 시 "database is locked" 유발 → NullPool로 교체.
     engine = create_engine(
         _db_url,
         echo=False,
         connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
+        poolclass=NullPool,
     )
 else:
     engine = create_engine(

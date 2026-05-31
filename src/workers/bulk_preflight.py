@@ -65,13 +65,11 @@ def prepare_bulk_urls(
         else:
             pending_urls = [normalize_url(u) for u in urls]
 
-        now = utc_now()
         for url in pending_urls:
             job = AnalysisJob(
                 job_id=uuid4(),
                 url=url,
-                status=JobStatus.PROCESSING,
-                started_at=now,
+                status=JobStatus.PENDING,
                 retry_count=0,
                 request_source="batch_ai_tools",
             )

@@ -1,7 +1,6 @@
 """Job DB 상태 갱신 헬퍼."""
 
 import logging
-from typing import Any
 from uuid import UUID
 
 from src.db.models import AnalysisJob, AISite
@@ -22,28 +21,35 @@ def is_failed_analysis(site: AISite) -> bool:
     return site.status in (SITE_STATUS_FAILURE, SITE_STATUS_BLOCKED)
 
 
-def mark_site_status(db: Any, url: str, status: str) -> None:
+def mark_site_status(url: str, status: str) -> None:
     """URL의 분석 실패 상태를 DB에 기록한다.
 
+    항상 새 세션을 열어 처리한다. 호출자 세션의 트랜잭션 상태(aborted 등)에
+    영향을 받지 않도록 하기 위함이다.
     기존 레코드가 없으면 최소 정보로 새 레코드를 생성한다.
     unreachable의 경우 unreachable_since는 최초 감지 시각을 보존한다.
     """
+    db = SessionLocal()
     now = utc_now()
-    site = db.query(AISite).filter(AISite.url == url).first()
-    if site:
-        site.status = status
-        if status == SITE_STATUS_UNREACHABLE and site.unreachable_since is None:
-            site.unreachable_since = now
+    try:
+        site = db.query(AISite).filter(AISite.url == url).first()
+        if site:
+            site.status = status
+            if status == SITE_STATUS_UNREACHABLE and site.unreachable_since is None:
+                site.unreachable_since = now
+        else:
+            db.add(AISite(
+                url=url,
+                is_ai_tool=False,
+                status=status,
+                unreachable_since=now if status == SITE_STATUS_UNREACHABLE else None,
+            ))
         db.commit()
-    else:
-        site = AISite(
-            url=url,
-            is_ai_tool=False,
-            status=status,
-            unreachable_since=now if status == SITE_STATUS_UNREACHABLE else None,
-        )
-        db.add(site)
-        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 def update_job_statuses(

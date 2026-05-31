@@ -137,7 +137,6 @@ class AIDetector:
         """카테고리·태그 일괄 삭제 후 재저장 (flush 1회). 예외는 호출자로 전파."""
         self.db.query(AICategory).filter(AICategory.site_id == site_id).delete(synchronize_session=False)
         self.db.query(AITag).filter(AITag.site_id == site_id).delete(synchronize_session=False)
-        self.db.flush()
 
         for cat in categories:
             self.db.add(AICategory(
