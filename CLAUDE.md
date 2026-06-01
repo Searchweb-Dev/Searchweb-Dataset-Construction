@@ -47,7 +47,7 @@ Read:
 - Use type hints
 - Use `logging`, never `print()`
 - Add Korean docstrings to Python functions and classes
-- Never use Chinese characters: write "분석", not "분析" or "分析"
+- Never use Chinese characters: write "분석" (U+BD84 U+C11D), not "분析" (U+BD84 U+6790) or "分析"
 
 ### 2.5. Commits
 - Commit only after tests pass
