@@ -1,10 +1,11 @@
-"""GeminiAnalyzer 단위 테스트."""
+"""GeminiAnalyzer 및 response_parser 단위 테스트."""
 
 import json
 from unittest.mock import Mock, patch, MagicMock
 import pytest
 
 from src.ai.gemini_analyzer import GeminiAnalyzer
+from src.ai.response_parser import parse_single, parse_batch, default_response
 
 
 @pytest.fixture
@@ -15,7 +16,7 @@ def analyzer():
 
 
 def test_analyzer_initialization(analyzer):
-    """분석기 초기화 확인."""
+    """분析기 초기화 확인."""
     assert analyzer.model is not None
     assert analyzer.client is not None
 
@@ -33,7 +34,7 @@ def test_parse_single_valid_json(analyzer):
         "confidence": 0.95,
     })
 
-    result = analyzer._parse_single(mock_response)
+    result = parse_single(mock_response)
 
     assert result["is_ai_tool"] is True
     assert result["title"] == "Test AI"
@@ -45,7 +46,7 @@ def test_parse_single_invalid_json(analyzer):
     mock_response = Mock()
     mock_response.text = "응답에 JSON이 없습니다."
 
-    result = analyzer._parse_single(mock_response)
+    result = parse_single(mock_response)
 
     assert result["is_ai_tool"] is False
     assert result["title"] == "Unknown"
@@ -63,7 +64,7 @@ def test_parse_batch_valid(analyzer):
     mock_response = Mock()
     mock_response.text = json.dumps(items)
 
-    results = analyzer._parse_batch(mock_response, ["https://a.com", "https://b.com"])
+    results = parse_batch(mock_response, ["https://a.com", "https://b.com"])
 
     assert len(results) == 2
     assert results[0]["is_ai_tool"] is True
@@ -79,7 +80,7 @@ def test_parse_batch_length_mismatch(analyzer):
          "categories": [], "tags": [], "scores": {"utility": 5, "trust": 5, "originality": 5}, "confidence": 0.9},
     ])
 
-    results = analyzer._parse_batch(mock_response, ["https://a.com", "https://b.com", "https://c.com"])
+    results = parse_batch(mock_response, ["https://a.com", "https://b.com", "https://c.com"])
 
     assert len(results) == 3
     assert results[0]["title"] == "Only One"
@@ -92,7 +93,7 @@ def test_parse_batch_invalid_json(analyzer):
     mock_response = Mock()
     mock_response.text = "invalid json"
 
-    results = analyzer._parse_batch(mock_response, ["https://a.com", "https://b.com"])
+    results = parse_batch(mock_response, ["https://a.com", "https://b.com"])
 
     assert len(results) == 2
     assert all(r["title"] == "Unknown" for r in results)
@@ -100,7 +101,7 @@ def test_parse_batch_invalid_json(analyzer):
 
 def test_default_response(analyzer):
     """기본 응답 구조 확인."""
-    result = analyzer._default_response()
+    result = default_response()
 
     assert result["is_ai_tool"] is False
     assert result["confidence"] == 0

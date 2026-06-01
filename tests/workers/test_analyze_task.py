@@ -2,20 +2,25 @@
 
 import threading
 from unittest.mock import MagicMock, patch
-from uuid import uuid4
+from uuid import uuid4, UUID
 
 import pytest
 
 from src.core.exceptions import SiteUnreachableError
-from src.core.error_policy import RateLimitError
-from src.workers.analyze_task import _analyze_one
+from src.core.error_policy import (
+    RateLimitError, ApiTimeoutError, ApiServerUnavailableError,
+    ApiUnauthenticatedError, ApiPermissionDeniedError, ApiPreconditionError,
+    ApiNotFoundError,
+)
+from src.core.enums import JobStatus
+from src.workers.analyze_task import _analyze_one, _mark_jobs_processing
 
 
 # ---------------------------------------------------------------------------
 # 헬퍼
 # ---------------------------------------------------------------------------
 
-def _make_job_id() -> "UUID":
+def _make_job_id() -> UUID:
     return uuid4()
 
 
@@ -56,7 +61,7 @@ class TestAnalyzeOne:
         assert result == expected
         assert error is None
 
-    def test_결과없으면_분析실패_에러(self):
+    def test_결과없으면_분석실패_에러(self):
         """detect_and_save가 None 반환 시 '분석 실패' 에러를 반환한다."""
         job_id = _make_job_id()
 
@@ -77,7 +82,7 @@ class TestAnalyzeOne:
         with patch("src.workers.analyze_task.SessionLocal"), \
              patch("src.workers.analyze_task.get_llm_analyzer"), \
              patch("src.workers.analyze_task.AIDetector") as MockDetector, \
-             patch("src.workers.analyze_task._mark_site_status") as mock_mark:
+             patch("src.workers.analyze_task.mark_site_status") as mock_mark:
             MockDetector.return_value = _mock_detector(
                 side_effect=SiteUnreachableError("접근 불가")
             )
@@ -106,6 +111,84 @@ class TestAnalyzeOne:
 
 
 # ---------------------------------------------------------------------------
+# _analyze_one — 추가 예외 경로
+# ---------------------------------------------------------------------------
+
+class TestAnalyzeOneExceptions:
+    """_analyze_one 예외 종류별 반환값 검증."""
+
+    def test_api_not_found_returns_error(self):
+        job_id = _make_job_id()
+        with patch("src.workers.analyze_task.SessionLocal"), \
+             patch("src.workers.analyze_task.get_llm_analyzer"), \
+             patch("src.workers.analyze_task.AIDetector") as MockDetector, \
+             patch("src.workers.analyze_task.mark_site_status"):
+            MockDetector.return_value.detect_and_save.side_effect = ApiNotFoundError("404")
+            _, _, result, error = _analyze_one("https://example.com", job_id)
+
+        assert result is None
+        assert error is not None
+
+    def test_api_timeout_returns_error(self):
+        job_id = _make_job_id()
+        with patch("src.workers.analyze_task.SessionLocal"), \
+             patch("src.workers.analyze_task.get_llm_analyzer"), \
+             patch("src.workers.analyze_task.AIDetector") as MockDetector:
+            MockDetector.return_value.detect_and_save.side_effect = ApiTimeoutError("timeout")
+            _, _, result, error = _analyze_one("https://example.com", job_id)
+
+        assert result is None
+        assert error is not None
+
+    def test_server_unavailable_returns_error(self):
+        job_id = _make_job_id()
+        with patch("src.workers.analyze_task.SessionLocal"), \
+             patch("src.workers.analyze_task.get_llm_analyzer"), \
+             patch("src.workers.analyze_task.AIDetector") as MockDetector:
+            MockDetector.return_value.detect_and_save.side_effect = ApiServerUnavailableError("503")
+            _, _, result, error = _analyze_one("https://example.com", job_id)
+
+        assert result is None
+        assert error is not None
+
+    def test_unauthenticated_calls_mark_site_status(self):
+        job_id = _make_job_id()
+        with patch("src.workers.analyze_task.SessionLocal"), \
+             patch("src.workers.analyze_task.get_llm_analyzer"), \
+             patch("src.workers.analyze_task.AIDetector") as MockDetector, \
+             patch("src.workers.analyze_task.mark_site_status") as mock_mark:
+            MockDetector.return_value.detect_and_save.side_effect = ApiUnauthenticatedError("401")
+            _, _, result, error = _analyze_one("https://example.com", job_id)
+
+        assert result is None
+        mock_mark.assert_called_once()
+
+    def test_permission_denied_calls_mark_site_status(self):
+        job_id = _make_job_id()
+        with patch("src.workers.analyze_task.SessionLocal"), \
+             patch("src.workers.analyze_task.get_llm_analyzer"), \
+             patch("src.workers.analyze_task.AIDetector") as MockDetector, \
+             patch("src.workers.analyze_task.mark_site_status") as mock_mark:
+            MockDetector.return_value.detect_and_save.side_effect = ApiPermissionDeniedError("403")
+            _, _, result, error = _analyze_one("https://example.com", job_id)
+
+        assert result is None
+        mock_mark.assert_called_once()
+
+    def test_precondition_calls_mark_site_status(self):
+        job_id = _make_job_id()
+        with patch("src.workers.analyze_task.SessionLocal"), \
+             patch("src.workers.analyze_task.get_llm_analyzer"), \
+             patch("src.workers.analyze_task.AIDetector") as MockDetector, \
+             patch("src.workers.analyze_task.mark_site_status") as mock_mark:
+            MockDetector.return_value.detect_and_save.side_effect = ApiPreconditionError("precondition")
+            _, _, result, error = _analyze_one("https://example.com", job_id)
+
+        assert result is None
+        mock_mark.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
 # _analyze_one — rate_limit_event 동작
 # ---------------------------------------------------------------------------
 
@@ -121,7 +204,6 @@ class TestAnalyzeOneRateLimitEvent:
 
             _, _, result, error = _analyze_one("https://example.com", job_id, event)
 
-            # DB 세션과 AIDetector가 생성되지 않아야 한다
             MockSession.assert_not_called()
             MockDetector.assert_not_called()
 
@@ -182,6 +264,99 @@ class TestAnalyzeOneRateLimitEvent:
 
 
 # ---------------------------------------------------------------------------
+# _mark_jobs_processing
+# ---------------------------------------------------------------------------
+
+class TestMarkJobsProcessing:
+    def test_updates_status_to_processing(self, db):
+        from src.db.models.analysis_job import AnalysisJob
+        job_id = uuid4()
+        db.add(AnalysisJob(job_id=job_id, url="https://example.com", status=JobStatus.PENDING, retry_count=0))
+        db.commit()
+
+        with patch("src.workers.analyze_task.SessionLocal", return_value=db):
+            _mark_jobs_processing([job_id])
+
+        db.expire_all()
+        job = db.query(AnalysisJob).filter(AnalysisJob.job_id == job_id).first()
+        assert job.status == JobStatus.PROCESSING
+        assert job.started_at is not None
+
+    def test_handles_multiple_jobs(self, db):
+        from src.db.models.analysis_job import AnalysisJob
+        ids = [uuid4(), uuid4(), uuid4()]
+        for jid in ids:
+            db.add(AnalysisJob(job_id=jid, url=f"https://example{jid}.com", status=JobStatus.PENDING, retry_count=0))
+        db.commit()
+
+        with patch("src.workers.analyze_task.SessionLocal", return_value=db):
+            _mark_jobs_processing(ids)
+
+        db.expire_all()
+        for jid in ids:
+            job = db.query(AnalysisJob).filter(AnalysisJob.job_id == jid).first()
+            assert job.status == JobStatus.PROCESSING
+
+
+# ---------------------------------------------------------------------------
+# analyze_urls_batch — 배치 태스크 로직
+# ---------------------------------------------------------------------------
+
+class TestAnalyzeUrlsBatch:
+    """analyze_urls_batch Celery 태스크 핵심 로직 검증 (run 직접 호출)."""
+
+    def test_returns_success_and_failed_counts(self):
+        from src.workers.analyze_task import analyze_urls_batch
+        urls = ["https://a.com", "https://b.com"]
+        job_ids = [str(uuid4()), str(uuid4())]
+
+        mock_db = MagicMock()
+        mock_db.query.return_value.filter.return_value.all.return_value = []
+
+        def fake_analyze_one(url, job_id, rate_limit_event=None):
+            return url, job_id, {"site_id": 1, "is_ai_tool": True}, None
+
+        with patch("src.workers.analyze_task.SessionLocal", return_value=mock_db), \
+             patch("src.workers.analyze_task._analyze_one", side_effect=fake_analyze_one), \
+             patch("src.workers.analyze_task.update_job_statuses"):
+            result = analyze_urls_batch.run(job_ids, urls)
+
+        assert result["total"] == 2
+        assert result["success"] + result["failed"] == 2
+
+    def test_handles_empty_url_list(self):
+        from src.workers.analyze_task import analyze_urls_batch
+
+        mock_db = MagicMock()
+        mock_db.query.return_value.filter.return_value.all.return_value = []
+
+        with patch("src.workers.analyze_task.SessionLocal", return_value=mock_db), \
+             patch("src.workers.analyze_task.update_job_statuses"):
+            result = analyze_urls_batch.run([], [])
+
+        assert result["total"] == 0
+
+    def test_failure_counted_when_analyze_fails(self):
+        from src.workers.analyze_task import analyze_urls_batch
+        urls = ["https://a.com"]
+        job_ids = [str(uuid4())]
+
+        mock_db = MagicMock()
+        mock_db.query.return_value.filter.return_value.all.return_value = []
+
+        def fake_analyze_one(url, job_id, rate_limit_event=None):
+            return url, job_id, None, "timeout error"
+
+        with patch("src.workers.analyze_task.SessionLocal", return_value=mock_db), \
+             patch("src.workers.analyze_task._analyze_one", side_effect=fake_analyze_one), \
+             patch("src.workers.analyze_task.update_job_statuses"):
+            result = analyze_urls_batch.run(job_ids, urls)
+
+        assert result["failed"] == 1
+        assert result["success"] == 0
+
+
+# ---------------------------------------------------------------------------
 # analyze_urls_bulk — 슬라이딩 윈도우 조기 종료
 # ---------------------------------------------------------------------------
 
@@ -189,11 +364,6 @@ class TestAnalyzeUrlsBulkEarlyStop:
     """슬라이딩 윈도우 핵심 로직을 직접 실행해 429 발생 후 미제출 URL 차단을 검증한다."""
 
     def _run_sliding_window(self, urls: list[str], fail_url: str) -> tuple[list, dict, dict]:
-        """슬라이딩 윈도우 루프만 직접 구동한다.
-
-        analyze_urls_bulk의 DB 초기화 단계를 건너뛰고,
-        job_id_map을 직접 구성한 뒤 executor + wait 루프만 실행한다.
-        """
         import itertools
         from concurrent.futures import ThreadPoolExecutor, FIRST_COMPLETED, wait as cf_wait
         from src.workers.analyze_task import _BATCH_CONCURRENCY
@@ -283,21 +453,17 @@ class TestAnalyzeUrlsBulkEarlyStop:
 
 
 # ---------------------------------------------------------------------------
-# 기존 smoke 테스트 유지
+# smoke 테스트
 # ---------------------------------------------------------------------------
 
 def test_analyze_url_task_exists():
-    """분析 작업 존재 확인."""
     from src.workers.analyze_task import analyze_url
-
     assert analyze_url is not None
     assert hasattr(analyze_url, "name")
 
 
 def test_celery_app_configured():
-    """Celery 앱 설정 확인."""
     from src.workers.celery_app import app
-
     assert app is not None
     assert app.conf.broker_url is not None
     assert app.conf.result_backend is not None
