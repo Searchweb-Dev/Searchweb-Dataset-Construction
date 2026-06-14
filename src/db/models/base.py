@@ -11,11 +11,11 @@ class BaseModel(Base):
 
     __abstract__ = True
 
-    created_at = Column(DateTime, server_default=func.now(), nullable=False,
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False,
                         comment="레코드 생성 시각 (UTC)")
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False,
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False,
                         comment="레코드 최종 수정 시각 (UTC)")
-    deleted_at = Column(DateTime, nullable=True, default=None,
+    deleted_at = Column(DateTime(timezone=True), nullable=True, default=None,
                         comment="소프트 삭제 시각 (NULL이면 유효 레코드)")
     created_by_member_id = Column(Integer, nullable=True,
                                   comment="생성한 회원 ID")

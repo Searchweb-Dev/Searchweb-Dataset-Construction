@@ -45,9 +45,9 @@ class AISite(BaseModel):
                        comment="필수 품질 기준 전체 통과 여부")
     review_required = Column(Boolean, nullable=True,
                              comment="수동 검수 필요 여부")
-    last_analyzed_at = Column(DateTime, nullable=True, index=True,
+    last_analyzed_at = Column(DateTime(timezone=True), nullable=True, index=True,
                               comment="마지막 분석 완료 시각 (UTC)")
     status = Column(String(20), nullable=True, index=True,
                     comment="분석 상태 (ok / unreachable / blocked / failure). NULL은 미분류.")
-    unreachable_since = Column(DateTime, nullable=True,
-                               comment="400 접근 불가 최초 감지 시각 (UTC). NULL이면 접근 가능 상태.")
+    unreachable_since = Column(DateTime(timezone=True), nullable=True,
+                               comment="접근 불가 최초 감지 시각 (UTC). NULL이면 접근 가능 상태.")

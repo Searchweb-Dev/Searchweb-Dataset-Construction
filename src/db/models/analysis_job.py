@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import Column, BigInteger, String, Text, Integer, DateTime, ForeignKey, Uuid
+from sqlalchemy import Column, BigInteger, String, Text, Integer, DateTime, ForeignKey, Uuid, CheckConstraint
 
 from .base import BaseModel
 
@@ -11,6 +11,12 @@ class AnalysisJob(BaseModel):
     """AI 사이트 분석 작업 기록."""
 
     __tablename__ = "analysis_job"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'processing', 'success', 'failed')",
+            name="ck_analysis_job_status",
+        ),
+    )
 
     job_id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4,
                     comment="작업 고유 식별자 (UUID v4)")
@@ -22,9 +28,9 @@ class AnalysisJob(BaseModel):
                     comment="작업 상태 (pending / processing / success / failed)")
     error_message = Column(Text, nullable=True,
                            comment="실패 시 오류 메시지")
-    started_at = Column(DateTime, nullable=True,
+    started_at = Column(DateTime(timezone=True), nullable=True,
                         comment="작업 시작 시각 (UTC)")
-    completed_at = Column(DateTime, nullable=True,
+    completed_at = Column(DateTime(timezone=True), nullable=True,
                           comment="작업 완료 시각 (UTC)")
     retry_count = Column(Integer, nullable=False, default=0,
                          comment="재시도 횟수")
