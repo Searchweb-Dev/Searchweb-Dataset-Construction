@@ -14,10 +14,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - dockerfile: Dockerfile.api
-            image: ghcr.io/${{ github.repository }}/api
-          - dockerfile: Dockerfile.worker
-            image: ghcr.io/${{ github.repository }}/worker
+          - file: Dockerfile.api
+            suffix: api
+          - file: Dockerfile.worker
+            suffix: worker
 
     steps:
       - uses: actions/checkout@v6
@@ -33,7 +33,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ matrix.image }}
+          images: ghcr.io/${{ github.repository }}/${{ matrix.suffix }}
           tags: |
             type=ref,event=tag
             type=raw,value=latest
@@ -43,7 +43,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          dockerfile: ${{ matrix.dockerfile }}
+          file: ${{ matrix.file }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
