@@ -1,8 +1,6 @@
 """src/core/batch_file.py — URL 추출 단위 테스트."""
 
 import json
-import os
-import tempfile
 import pytest
 from src.core.batch_file import (
     extract_urls_from_bytes,

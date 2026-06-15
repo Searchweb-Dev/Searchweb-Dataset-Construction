@@ -1,6 +1,5 @@
 """src/rule/utils.py — 유틸 함수 단위 테스트."""
 
-import pytest
 from src.rule.utils import (
     normalize_url,
     get_domain,

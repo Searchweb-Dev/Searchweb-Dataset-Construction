@@ -1,6 +1,5 @@
 """src/workers/job_status.py — job 상태 갱신 단위 테스트."""
 
-import pytest
 from uuid import uuid4
 from unittest.mock import MagicMock, patch
 from src.workers.job_status import is_failed_analysis, mark_site_status, update_job_statuses
@@ -58,7 +57,7 @@ class TestMarkSiteStatus:
         # SQLite는 BigInteger PK autoincrement 미지원 — 신규 생성 로직은 PostgreSQL 환경에서 검증
         # 여기서는 실제 구현이 신규 AISite 생성을 시도함을 확인한다
         from src.db.models.ai_site import AISite
-        from unittest.mock import MagicMock, call
+        from unittest.mock import MagicMock
         mock_db = MagicMock()
         mock_db.query.return_value.filter.return_value.first.return_value = None
         with patch("src.workers.job_status.SessionLocal", return_value=mock_db):

@@ -7,7 +7,6 @@ from src.db.models import AnalysisJob, AISite
 from src.db.session import SessionLocal
 from src.core.enums import JobStatus
 from src.core.url import normalize_url
-from src.core.util import utc_now
 from src.workers.job_status import is_failed_analysis
 from src.db.models.ai_site import SITE_STATUS_UNREACHABLE
 from src.core.config import get_unreachable_ttl_seconds

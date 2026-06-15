@@ -7,9 +7,7 @@ EvaluationResult → 분석 dict 변환 로직의 6가지 핵심 케이스를 �
 from __future__ import annotations
 
 from typing import Dict
-from unittest.mock import MagicMock
 
-import pytest
 
 from src.rule.analyzer import _map_to_analysis_dict
 from src.rule.models import CriterionResult, EvaluationResult

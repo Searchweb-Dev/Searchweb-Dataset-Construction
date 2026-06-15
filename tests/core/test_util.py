@@ -1,7 +1,6 @@
 """src/core/util.py — utc_now 단위 테스트."""
 
 from datetime import datetime
-import pytest
 from src.core.util import utc_now
 
 

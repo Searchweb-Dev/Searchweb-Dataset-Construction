@@ -1,7 +1,7 @@
 """GeminiAnalyzer 및 response_parser 단위 테스트."""
 
 import json
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 import pytest
 
 from src.ai.gemini_analyzer import GeminiAnalyzer

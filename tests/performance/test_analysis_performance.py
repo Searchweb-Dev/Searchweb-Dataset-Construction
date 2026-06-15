@@ -1,5 +1,6 @@
 """성능 측정 및 벤치마크 테스트."""
 
+import inspect
 import time
 import pytest
 from unittest.mock import Mock, patch, MagicMock
@@ -141,7 +142,7 @@ class TestCodeQuality:
                 continue
             annotations = inspect.signature(obj).parameters
             if annotations:
-                has_type_hints = any(
+                any(
                     param.annotation != inspect.Parameter.empty
                     for param in annotations.values()
                 )
@@ -171,6 +172,3 @@ def test_client(client):
 def valid_api_key():
     """유효한 API 키."""
     return "test-api-key-change-in-production"
-
-
-import inspect

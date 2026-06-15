@@ -1,6 +1,5 @@
 """src/workers/bulk_preflight.py — bulk preflight 단위 테스트."""
 
-import pytest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import MagicMock, patch
 from src.workers.bulk_preflight import _is_unreachable_blocked, prepare_bulk_urls

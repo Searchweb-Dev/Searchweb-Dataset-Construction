@@ -1,12 +1,11 @@
 """AI 판별 로직 테스트."""
 
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 import pytest
-from datetime import datetime
 from sqlalchemy.orm import Session
 
 from src.db.site_service import AIDetector
-from src.db.models import AISite, AICategory, AITag
+from src.db.models import AISite
 
 
 @pytest.fixture

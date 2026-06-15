@@ -1,6 +1,5 @@
 """src/rule/classifiers/taxonomy_classifier.py — TaxonomyClassifierMixin 단위 테스트."""
 
-import pytest
 from src.rule.classifiers.taxonomy_classifier import TaxonomyClassifierMixin
 from src.rule.models import FetchResult
 from src.rule.config import EvalConfig

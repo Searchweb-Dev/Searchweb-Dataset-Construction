@@ -1,9 +1,7 @@
 """src/rule/classifiers/status_policy.py — StatusPolicyMixin 단위 테스트."""
 
-import pytest
-from unittest.mock import MagicMock
 from src.rule.classifiers.status_policy import StatusPolicyMixin
-from src.rule.models import CriterionResult, Evidence, FetchResult
+from src.rule.models import CriterionResult, FetchResult
 from src.rule.config import EvalConfig
 
 

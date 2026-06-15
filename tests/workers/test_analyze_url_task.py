@@ -3,11 +3,9 @@
 from unittest.mock import MagicMock, patch
 from uuid import uuid4, UUID
 
-import pytest
 
 from src.core.exceptions import SiteUnreachableError
 from src.core.error_policy import (
-    RateLimitError, ApiTimeoutError, ApiServerUnavailableError,
     ApiUnauthenticatedError, ApiPermissionDeniedError, ApiPreconditionError,
     ApiNotFoundError,
 )
@@ -244,7 +242,6 @@ class TestAnalyzeUrlsBulk:
 
     def test_rate_limit_stops_remaining_urls(self):
         from src.workers.analyze_task import analyze_urls_bulk
-        import threading
         from uuid import uuid4
 
         ids = [uuid4() for _ in range(5)]

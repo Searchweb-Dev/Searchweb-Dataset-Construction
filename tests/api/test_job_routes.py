@@ -1,9 +1,7 @@
 """src/api/job_routes.py — 작업 상태 조회 API 통합 테스트."""
 
-import pytest
 from uuid import uuid4
 from sqlalchemy import text
-from fastapi.testclient import TestClient
 
 
 def _create_job(db, job_id, url: str, status: str, site_id=None):

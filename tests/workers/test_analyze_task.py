@@ -4,7 +4,6 @@ import threading
 from unittest.mock import MagicMock, patch
 from uuid import uuid4, UUID
 
-import pytest
 
 from src.core.exceptions import SiteUnreachableError
 from src.core.error_policy import (

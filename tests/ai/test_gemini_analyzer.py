@@ -1,6 +1,5 @@
 """src/ai/gemini_analyzer.py — GeminiAnalyzer 단위 테스트."""
 
-import os
 import pytest
 from unittest.mock import MagicMock, patch
 from src.ai.gemini_analyzer import _is_retryable, _raise_typed_error, GeminiAnalyzer
@@ -8,8 +7,6 @@ from src.core.exceptions import (
     SiteUnreachableError,
     RateLimitError,
     ApiTimeoutError,
-    ApiServerUnavailableError,
-    ApiUnauthenticatedError,
 )
 
 

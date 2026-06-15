@@ -1,10 +1,11 @@
 from logging.config import fileConfig
+import os
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
-import os
-
 from alembic import context
+from src.db.models.base import Base
+import src.db.models  # noqa: F401 - 모든 모델을 Base에 등록
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -17,8 +18,6 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-from src.db.models.base import Base
-import src.db.models  # noqa: F401 - 모든 모델을 Base에 등록
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,

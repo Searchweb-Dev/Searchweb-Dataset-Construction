@@ -1,6 +1,5 @@
 """src/core/url.py — normalize_url 단위 테스트."""
 
-import pytest
 from src.core.url import normalize_url
 
 

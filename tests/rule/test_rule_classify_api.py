@@ -92,7 +92,7 @@ def _patch_pipeline_run(mock_pipeline: EvaluationResult, mock_saved: dict):
 
     from contextlib import ExitStack
     stack = ExitStack()
-    MockRuleAnalyzer = stack.enter_context(patch("src.api.rule_routes.RuleAnalyzer", return_value=mock_rule_analyzer))
+    stack.enter_context(patch("src.api.rule_routes.RuleAnalyzer", return_value=mock_rule_analyzer))
     MockDetector = stack.enter_context(patch("src.api.rule_routes.AIDetector"))
     MockDetector.return_value.detect_and_save.return_value = mock_saved
     return stack, MockDetector, mock_rule_analyzer

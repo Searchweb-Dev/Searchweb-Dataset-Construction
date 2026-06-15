@@ -1,7 +1,5 @@
 """src/rule/classifiers/ai_scope_classifier.py — AiScopeClassifierMixin 단위 테스트."""
 
-import pytest
-from unittest.mock import MagicMock
 from src.rule.classifiers.ai_scope_classifier import AiScopeClassifierMixin
 from src.rule.models import FetchResult
 from src.rule.config import EvalConfig

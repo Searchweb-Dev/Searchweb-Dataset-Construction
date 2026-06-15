@@ -2,8 +2,6 @@
 
 import json
 import os
-import pytest
-from unittest.mock import patch
 from src.core.result_writer import (
     _favicon_url,
     _output_path,

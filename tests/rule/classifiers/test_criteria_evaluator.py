@@ -1,17 +1,12 @@
 """src/rule/classifiers/criteria_evaluator.py — CriteriaEvaluatorMixin / WeightedQualityEvaluator 단위 테스트."""
 
-import pytest
 from unittest.mock import MagicMock
 from src.rule.classifiers.criteria_evaluator import (
     CriteriaEvaluatorMixin,
     WeightedQualityEvaluator,
     DummyLLM,
 )
-from src.rule.classifiers.discovery_signals import DiscoverySignalMixin
-from src.rule.classifiers.ai_scope_classifier import AiScopeClassifierMixin
-from src.rule.classifiers.taxonomy_classifier import TaxonomyClassifierMixin
-from src.rule.classifiers.status_policy import StatusPolicyMixin
-from src.rule.models import CriterionResult, Evidence, FetchResult
+from src.rule.models import CriterionResult, FetchResult
 from src.rule.config import EvalConfig
 
 

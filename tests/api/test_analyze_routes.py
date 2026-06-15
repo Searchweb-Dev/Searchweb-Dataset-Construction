@@ -1,9 +1,7 @@
 """src/api/api/v1/analyze_routes.py — 분석 요청 API 통합 테스트."""
 
 import json
-import pytest
 from unittest.mock import patch, MagicMock
-from fastapi.testclient import TestClient
 
 
 API_KEY = "test-api-key-change-in-production"
@@ -93,7 +91,6 @@ class TestAnalyzeEndpoint:
 
     def test_force_reanalyze_bypasses_cache(self, client, db):
         from sqlalchemy import text
-        from uuid import uuid4
         site_id = 101
         url = "https://cached2.com"
         db.execute(text(

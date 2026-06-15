@@ -1,7 +1,6 @@
 """src/rule/pipeline.py — 파이프라인 step 단위 테스트."""
 
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from src.rule.pipeline import (
     _build_shared_text_cache,
     step_extract_signals,
@@ -11,7 +10,6 @@ from src.rule.pipeline import (
     step_score_and_predict_status,
     step_review_and_finalize_status,
     step_build_summary,
-    step_fetch_and_collect_pages,
 )
 from src.rule.models import FetchResult, CriterionResult
 from src.rule.config import EvalConfig

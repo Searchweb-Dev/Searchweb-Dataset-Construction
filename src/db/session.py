@@ -5,7 +5,7 @@ from typing import Generator
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import NullPool, StaticPool
+from sqlalchemy.pool import NullPool
 
 from src.core.config import get_db_url, get_db_pool_timeout, get_db_pool_recycle
 

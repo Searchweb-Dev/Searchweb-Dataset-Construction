@@ -13,7 +13,6 @@ SPA/JS 렌더링이 필요하거나 스크린샷 기반 시각 분석이 필요�
 import asyncio
 import base64
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 

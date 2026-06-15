@@ -1,7 +1,6 @@
 """src/rule/fetchers/page_fetcher.py — PageFetcher 단위 테스트."""
 
-import pytest
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 from src.rule.fetchers.page_fetcher import PageFetcher
 from src.rule.config import EvalConfig
 from src.rule.models import FetchResult

@@ -1,6 +1,5 @@
 """src/rule/classifiers/discovery_signals.py — DiscoverySignalMixin 단위 테스트."""
 
-import pytest
 from unittest.mock import MagicMock
 from src.rule.classifiers.discovery_signals import DiscoverySignalMixin
 from src.rule.models import FetchResult
