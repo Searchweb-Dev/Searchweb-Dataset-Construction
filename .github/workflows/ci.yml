@@ -20,7 +20,7 @@ jobs:
 
       # 2. uv 셋업(Python 3.13 포함)
       - name: Set up uv
-        uses: astral-sh/setup-uv@v8
+        uses: astral-sh/setup-uv@v8.2.0
         with:
           python-version: "3.13"
 
