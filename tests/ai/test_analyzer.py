@@ -11,7 +11,8 @@ from src.ai.response_parser import parse_single, parse_batch, default_response
 @pytest.fixture
 def analyzer():
     """GeminiAnalyzer 인스턴스 (API 호출 없이 생성)."""
-    with patch("src.ai.gemini_analyzer.genai.Client"):
+    with patch("src.ai.gemini_analyzer.genai.Client"), \
+         patch("src.ai.gemini_analyzer.get_gemini_model", return_value="gemini-test"):
         return GeminiAnalyzer(api_key="test-key")
 
 

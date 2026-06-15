@@ -1,6 +1,6 @@
 """AI 판별 로직 테스트."""
 
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 import pytest
 from sqlalchemy.orm import Session
 
@@ -17,7 +17,8 @@ def mock_db():
 @pytest.fixture
 def detector(mock_db):
     """AI 판별기 인스턴스."""
-    return AIDetector(mock_db)
+    with patch("src.db.site_service.get_analyzer", return_value=Mock()):
+        return AIDetector(mock_db)
 
 
 def test_detector_initialization(detector, mock_db):
@@ -59,41 +60,44 @@ def test_detect_and_save_success(detector, mock_db):
 
 def test_validate_analysis_valid():
     """분석 결과 검증 - 유효한 데이터."""
-    detector = AIDetector(Mock())
-    
+    with patch("src.db.site_service.get_analyzer", return_value=Mock()):
+        detector = AIDetector(Mock())
+
     analysis = {
         "is_ai_tool": True,
         "title": "Test",
         "description": "Test description",
         "confidence": 0.95,
     }
-    
+
     assert detector._validate_analysis(analysis) is True
 
 
 def test_validate_analysis_missing_field():
     """분석 결과 검증 - 필드 누락."""
-    detector = AIDetector(Mock())
-    
+    with patch("src.db.site_service.get_analyzer", return_value=Mock()):
+        detector = AIDetector(Mock())
+
     analysis = {
         "is_ai_tool": True,
         "title": "Test",
         # 'description' 누락
         "confidence": 0.95,
     }
-    
+
     assert detector._validate_analysis(analysis) is False
 
 
 def test_validate_analysis_invalid_confidence():
     """분석 결과 검증 - 신뢰도 범위 오류."""
-    detector = AIDetector(Mock())
-    
+    with patch("src.db.site_service.get_analyzer", return_value=Mock()):
+        detector = AIDetector(Mock())
+
     analysis = {
         "is_ai_tool": True,
         "title": "Test",
         "description": "Test",
         "confidence": 1.5,  # 범위 초과
     }
-    
+
     assert detector._validate_analysis(analysis) is False
