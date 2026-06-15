@@ -34,7 +34,7 @@ Read:
 
 ### 2.3. Execution
 - Local: **Always use `uv run python`** — never call `python3` or `python` directly
-- Docker: `pip + requirements.txt`
+- Docker: `uv sync --frozen` (Dockerfile 내 자동 실행)
 - After modifying `alembic/` migration files, a full image rebuild is required before re-applying:
   ```bash
   docker compose down -v

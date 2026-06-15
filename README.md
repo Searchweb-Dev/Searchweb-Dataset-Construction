@@ -70,11 +70,10 @@ uv run celery -A src.workers.celery_app worker --loglevel=info
 ### tools/ 스크립트 실행 (Excel 파싱 등)
 
 ```bash
-uv pip install -r requirements-tools.txt
 uv run python tools/excel_reader.py
 ```
 
-> `openpyxl`, `pandas`는 Docker 이미지에 포함되지 않는다. `tools/` 스크립트를 로컬에서 실행할 때만 필요하다.
+> `openpyxl`, `pandas`는 `pyproject.toml`에 선언되어 있어 `uv sync` 후 별도 설치 없이 실행할 수 있다.
 
 ## API 사용 예시
 
@@ -154,8 +153,9 @@ sw-test/
 ├── alembic/
 ├── docs/
 ├── data/
-├── requirements.txt       # Docker 이미지 런타임 의존성
-└── requirements-tools.txt # tools/ 전용 의존성 (로컬 전용)
+├── pyproject.toml         # 의존성 선언
+├── uv.lock                # 의존성 고정 (자동 생성)
+└── docker-compose.yml
 ```
 
 ## 상세 문서

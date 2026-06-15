@@ -467,7 +467,8 @@ sw-test/
 ├── ARCHITECTURE.md
 ├── README.md
 ├── CLAUDE.md
-├── requirements.txt
+├── pyproject.toml
+├── uv.lock
 ├── docker-compose.yml
 ├── Dockerfile.api                   # API 서버 이미지
 └── Dockerfile.worker                # Celery Worker 이미지
