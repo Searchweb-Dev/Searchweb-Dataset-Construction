@@ -16,11 +16,11 @@ jobs:
 
     steps:
       # 1. 저장소 체크아웃
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # 2. uv 셋업(Python 3.13 포함)
       - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v8
         with:
           python-version: "3.13"
 
