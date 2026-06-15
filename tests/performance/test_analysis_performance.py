@@ -50,8 +50,12 @@ class TestAnalysisPerformance:
     def test_cache_effectiveness(self):
         """LLM 분석기 인스턴스 생성 확인."""
         from src.ai.analyzer import get_llm_analyzer
-        analyzer = get_llm_analyzer.__wrapped__() if hasattr(get_llm_analyzer, "__wrapped__") else get_llm_analyzer()
-        assert analyzer is not None
+        with patch("src.ai.analyzer.get_llm_provider", return_value="gemini"), \
+             patch("src.ai.analyzer.get_gemini_api_key", return_value="test-key"), \
+             patch("src.ai.analyzer.GeminiAnalyzer") as mock_cls:
+            mock_cls.return_value = Mock()
+            analyzer = get_llm_analyzer()
+            assert analyzer is not None
 
 
 class TestConcurrentAnalysis:
