@@ -231,6 +231,7 @@ output/
 harness/
 .claude/
 
+.serena/
 .serena/cache/*
 .serena/memories
 
