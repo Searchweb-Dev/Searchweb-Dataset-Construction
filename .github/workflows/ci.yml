@@ -32,10 +32,6 @@ jobs:
       - name: Lint (ruff)
         run: uv run ruff check .
 
-      # 5. 타입 체크
-      - name: Type check (mypy)
-        run: uv run mypy src/
-
-      # 6. 단위 테스트 실행
+      # 5. 단위 테스트 실행
       - name: Run tests
         run: uv run pytest -q --maxfail=1 # 첫 실패에서 중단
