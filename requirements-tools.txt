@@ -1,8 +1,0 @@
-# tools/ 스크립트 전용 의존성 (Docker 이미지에 포함되지 않음)
-# 로컬 실행 시: pip install -r requirements-tools.txt
-# 또는: uv pip install -r requirements-tools.txt
-
--r requirements.txt
-
-openpyxl>=3.1.0
-pandas>=2.0.0
