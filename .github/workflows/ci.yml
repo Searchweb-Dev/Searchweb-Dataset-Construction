@@ -1,0 +1,41 @@
+# .github/workflows/ci.yml
+
+# 1) 워크플로우 이름
+name: CI (Python)
+
+# 2) 언제 동작할지: main에 push/PR 시 실행
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest # GitHub 호스티드 러너(리눅스)
+
+    steps:
+      # 1. 저장소 체크아웃
+      - uses: actions/checkout@v4
+
+      # 2. uv 셋업(Python 3.13 포함)
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+
+      # 3. 의존성 설치
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      # 4. 린트(스타일/정적분석)
+      - name: Lint (ruff)
+        run: uv run ruff check .
+
+      # 5. 타입 체크
+      - name: Type check (mypy)
+        run: uv run mypy src/
+
+      # 6. 단위 테스트 실행
+      - name: Run tests
+        run: uv run pytest -q --maxfail=1 # 첫 실패에서 중단
