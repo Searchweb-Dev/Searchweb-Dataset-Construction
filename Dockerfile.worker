@@ -2,14 +2,16 @@
 
 FROM python:3.13-slim
 
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
 WORKDIR /app
 
+# 의존성 파일 복사 및 설치 (레이어 캐싱 활용)
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --no-install-project
+
 # 프로젝트 파일 복사
-COPY requirements.txt ./
 COPY src/ src/
 
-# 의존성 설치
-RUN pip install --no-cache-dir -r requirements.txt
-
 # Celery Worker 실행
-CMD ["celery", "-A", "src.workers.celery_app", "worker", "--loglevel=info", "-Q", "analyze", "--events"]
+CMD ["uv", "run", "celery", "-A", "src.workers.celery_app", "worker", "--loglevel=info", "-Q", "analyze", "--events"]
