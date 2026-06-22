@@ -33,7 +33,7 @@ class StatusPolicyMixin:
         if extracted.get("faq_only_docs"):
             reasons.append("FAQ만 존재하고 정식 docs/help center 여부가 애매함")
         if bool(extracted.get("anti_bot_blocked")):
-            reasons.append("anti-bot/challenge 응답으로 인해 신뢰 가능한 본문 수집이 제한됨")
+            reasons.append("anti-bot/challenge 응답으로 인해 신뢰 가능한 본문 수집이 제한됨 — 재분석 필요")
         playwright_enabled = bool(extracted.get("playwright_enabled", True))
         if homepage.fetched_by == "requests" and self.config.use_playwright and playwright_enabled:
             thin_content = (
@@ -42,6 +42,10 @@ class StatusPolicyMixin:
             )
             if bool(extracted.get("anti_bot_blocked")) or thin_content:
                 reasons.append("Playwright 재수집 없이 requests 결과만 사용됨")
+        taxonomy = extracted.get("taxonomy", {})
+        if isinstance(taxonomy, dict) and str(taxonomy.get("primary_category", "")).strip() in ("", "Uncategorized"):
+            if not bool(taxonomy.get("taxonomy_skipped")):
+                reasons.append("taxonomy 분류 결과가 Uncategorized로 카테고리 수동 확인이 필요함")
         if predicted_status == "curated":
             if not criteria["has_docs_or_help"].passed:
                 reasons.append("curated 근거로 사용할 docs/help evidence가 부족함")

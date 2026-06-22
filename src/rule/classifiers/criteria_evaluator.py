@@ -185,12 +185,20 @@ class CriteriaEvaluatorMixin:
                 score = 0.0
                 if len(s) >= 40:
                     score += 0.15
+                if len(s) >= 80:
+                    score += 0.05
                 if keyword_hit(s_lower, ACTION_KEYWORDS):
                     score += 0.35
                 if keyword_hit(s_lower, TASK_NOUNS):
                     score += 0.25
-                if re.search(r"\b(for|helps?|let[s]?)\b", s_lower) or any(k in s_lower for k in ["위한", "도와", "지원", "allows you to"]):
+                if re.search(r"\b(for|helps?|let[s]?|enable[s]?|allow[s]?)\b", s_lower) or any(k in s_lower for k in ["위한", "도와", "지원", "allows you to", "할 수 있"]):
                     score += 0.15
+                # 수혜자(팀/사용자 유형) 명시 시 구체성 가산
+                if re.search(r"\b(team[s]?|developer[s]?|engineer[s]?|writer[s]?|marketer[s]?|designer[s]?|business|enterprise|개발자|팀|마케터|디자이너|기업)\b", s_lower):
+                    score += 0.10
+                # 동사+목적어 연속 패턴 (더 구체적인 기능 설명)
+                if keyword_hit(s_lower, ACTION_KEYWORDS) and keyword_hit(s_lower, TASK_NOUNS):
+                    score += 0.10
                 if keyword_hit(s_lower, GENERIC_MARKETING_PHRASES):
                     score -= 0.2
                 if any(k in s_lower for k in ["ai", "llm", "agent", "assistant", "어시스턴트", "에이전트"]):
@@ -448,8 +456,13 @@ class WeightedQualityEvaluator(BaseToolQualityEvaluator):
         passed_count: int,
         hard_pass: bool,
         score_context: dict[str, object],
+        extracted: dict[str, object] | None = None,
     ) -> str:
         """가중치 점수와 하한 게이트를 사용해 최종 상태를 예측한다."""
+        ai_scope = (extracted or {}).get("ai_scope", {})
+        if isinstance(ai_scope, dict) and str(ai_scope.get("scope_decision", "")).lower() == "uncertain":
+            return "incubating"
+
         criterion_scores = score_context.get("criterion_scores", {})
         total_score = float(score_context.get("total_score", 0.0))
 

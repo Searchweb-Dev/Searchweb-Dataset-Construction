@@ -333,6 +333,12 @@ class TestWeightedPredictStatus:
             },
         }
 
+    def test_uncertain_ai_scope_forces_incubating(self):
+        ev = self._make_evaluator()
+        ctx = self._score_ctx(90.0)
+        extracted = {"ai_scope": {"scope_decision": "uncertain"}}
+        assert ev._predict_status({}, 5, True, ctx, extracted) == "incubating"
+
     def test_rejects_low_usable_score(self):
         ev = self._make_evaluator()
         ctx = self._score_ctx(90.0, usable=0.1)

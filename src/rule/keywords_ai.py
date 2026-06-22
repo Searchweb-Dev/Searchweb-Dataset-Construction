@@ -114,3 +114,34 @@ NON_AI_SITE_KEYWORDS = NON_AI_SITE_STRONG_KEYWORDS | NON_AI_SITE_WEAK_KEYWORDS
 
 EXTERNAL_DOCS_HOST_PREFIXES = ("help.", "docs.", "support.", "developers.", "developer.")
 EXTERNAL_POLICY_HOSTS = ("openai.com", "www.openai.com")
+
+KNOWN_AI_BRAND_TOKENS = {
+    "openai",
+    "anthropic",
+    "huggingface",
+    "perplexity",
+    "midjourney",
+    "stability",
+    "mistral",
+    "cohere",
+    "deepmind",
+    "gemini",
+    "claude",
+    "copilot",
+    "cursor",
+    "runway",
+    "elevenlabs",
+    "suno",
+    "udio",
+    "pika",
+    "synthesia",
+    "jasper",
+    "writesonic",
+    "character",
+    "inflection",
+    "xai",
+    "together",
+    "replicate",
+    "fireworks",
+    "groq",
+}

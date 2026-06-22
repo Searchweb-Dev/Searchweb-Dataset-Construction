@@ -163,7 +163,7 @@ def step_score_and_predict_status(evaluator: Any, ctx: PipelineContext) -> None:
     hard_pass = ctx["hard_pass"]
 
     score_context = evaluator._build_score_context(criteria)
-    predicted_status = evaluator._predict_status(criteria, passed_count, hard_pass, score_context)
+    predicted_status = evaluator._predict_status(criteria, passed_count, hard_pass, score_context, extracted)
     total_score = float(score_context.get("total_score", 0.0))
 
     if bool(extracted.get("anti_bot_blocked")) and not homepage.ok and passed_count == 0 and predicted_status == "rejected":

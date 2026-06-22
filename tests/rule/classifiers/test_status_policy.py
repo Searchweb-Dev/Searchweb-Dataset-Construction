@@ -42,10 +42,18 @@ class TestReviewGate:
             "has_privacy_or_data_policy": _make_criterion("has_privacy_or_data_policy", True),
         }
 
+    def _extracted(self, **kwargs) -> dict:
+        """taxonomy가 포함된 기본 extracted dict를 반환한다."""
+        base = {
+            "ai_scope": {"scope_decision": "ai"},
+            "taxonomy": {"primary_category": "Writing & Docs", "taxonomy_skipped": False},
+        }
+        base.update(kwargs)
+        return base
+
     def test_no_review_when_all_criteria_pass(self):
         homepage = _make_homepage()
-        extracted = {"ai_scope": {"scope_decision": "ai"}}
-        required, reasons = self.policy._review_gate(self.all_pass_criteria, homepage, extracted, "curated")
+        required, reasons = self.policy._review_gate(self.all_pass_criteria, homepage, self._extracted(), "curated")
         assert required is False
         assert reasons == []
 
@@ -57,7 +65,7 @@ class TestReviewGate:
 
     def test_review_when_uncertain_scope(self):
         homepage = _make_homepage()
-        extracted = {"ai_scope": {"scope_decision": "uncertain"}}
+        extracted = self._extracted(ai_scope={"scope_decision": "uncertain"})
         required, reasons = self.policy._review_gate(self.all_pass_criteria, homepage, extracted, "curated")
         assert required is True
         assert any("uncertain" in r for r in reasons)
@@ -66,28 +74,40 @@ class TestReviewGate:
         criteria = dict(self.all_pass_criteria)
         criteria["clear_function_desc"] = _make_criterion("clear_function_desc", True, confidence=0.5)
         homepage = _make_homepage()
-        required, reasons = self.policy._review_gate(criteria, homepage, {"ai_scope": {"scope_decision": "ai"}}, "curated")
+        required, reasons = self.policy._review_gate(criteria, homepage, self._extracted(), "curated")
         assert required is True
 
     def test_review_when_anti_bot_blocked(self):
         homepage = _make_homepage()
-        extracted = {"anti_bot_blocked": True, "ai_scope": {"scope_decision": "ai"}}
+        extracted = self._extracted(anti_bot_blocked=True)
         required, reasons = self.policy._review_gate(self.all_pass_criteria, homepage, extracted, "incubating")
         assert required is True
-        assert any("anti-bot" in r for r in reasons)
+        assert any("anti-bot" in r and "재분석" in r for r in reasons)
 
     def test_review_when_contact_sales_only(self):
         homepage = _make_homepage()
-        extracted = {"contact_sales_only": True, "ai_scope": {"scope_decision": "ai"}}
+        extracted = self._extracted(contact_sales_only=True)
         required, reasons = self.policy._review_gate(self.all_pass_criteria, homepage, extracted, "incubating")
         assert required is True
+
+    def test_review_when_taxonomy_uncategorized(self):
+        homepage = _make_homepage()
+        extracted = self._extracted(taxonomy={"primary_category": "Uncategorized", "taxonomy_skipped": False})
+        required, reasons = self.policy._review_gate(self.all_pass_criteria, homepage, extracted, "curated")
+        assert required is True
+        assert any("Uncategorized" in r for r in reasons)
+
+    def test_no_review_when_taxonomy_skipped(self):
+        homepage = _make_homepage()
+        extracted = self._extracted(taxonomy={"primary_category": "Uncategorized", "taxonomy_skipped": True})
+        required, reasons = self.policy._review_gate(self.all_pass_criteria, homepage, extracted, "curated")
+        assert required is False
 
     def test_review_when_curated_missing_docs(self):
         criteria = dict(self.all_pass_criteria)
         criteria["has_docs_or_help"] = _make_criterion("has_docs_or_help", False)
         homepage = _make_homepage()
-        extracted = {"ai_scope": {"scope_decision": "ai"}}
-        required, reasons = self.policy._review_gate(criteria, homepage, extracted, "curated")
+        required, reasons = self.policy._review_gate(criteria, homepage, self._extracted(), "curated")
         assert required is True
         assert any("docs" in r for r in reasons)
 
@@ -95,7 +115,6 @@ class TestReviewGate:
         criteria = dict(self.all_pass_criteria)
         criteria["has_privacy_or_data_policy"] = _make_criterion("has_privacy_or_data_policy", False)
         homepage = _make_homepage()
-        extracted = {"ai_scope": {"scope_decision": "ai"}}
-        required, reasons = self.policy._review_gate(criteria, homepage, extracted, "curated")
+        required, reasons = self.policy._review_gate(criteria, homepage, self._extracted(), "curated")
         assert required is True
         assert any("policy" in r for r in reasons)

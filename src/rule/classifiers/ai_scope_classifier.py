@@ -12,6 +12,7 @@ from src.rule.keywords import (
     AI_SITE_WEAK_KEYWORDS,
     NON_AI_SITE_STRONG_KEYWORDS,
     NON_AI_SITE_WEAK_KEYWORDS,
+    KNOWN_AI_BRAND_TOKENS,
 )
 from src.rule.models import FetchResult
 from src.rule.utils import collect_keyword_hits, get_domain, lower
@@ -68,19 +69,7 @@ class AiScopeClassifierMixin:
         uncertain_margin_high = int(getattr(self.config, "ai_scope_uncertain_margin_high", 2))
         uncertain_non_ai_score_cap = int(getattr(self.config, "ai_scope_uncertain_non_ai_score_cap", 6))
 
-        known_ai_brand_hint = any(
-            token in domain
-            for token in [
-                "openai",
-                "anthropic",
-                "huggingface",
-                "perplexity",
-                "midjourney",
-                "stability",
-                "mistral",
-                "cohere",
-            ]
-        )
+        known_ai_brand_hint = any(token in domain for token in KNOWN_AI_BRAND_TOKENS)
         tld_ai_hint = domain.endswith(".ai")
 
         if len(strong_ai_hits) >= 2 and ai_non_ai_margin >= 1:
