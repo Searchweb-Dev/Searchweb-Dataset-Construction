@@ -76,7 +76,7 @@ Gemini url_context 툴로 웹사이트를 분석한다.
   - 가중치 기반 점수화 (0~100)
   - 상태 판정: curated / incubating / rejected
   - **AI 범위 판정**:
-    - 도메인에 `KNOWN_AI_BRAND_TOKENS`(29개 브랜드 집합) 포함 시 strong hint 적용
+    - 도메인에 `KNOWN_AI_BRAND_TOKENS`(28개 브랜드 집합) 포함 시 strong hint 적용
     - `scope_decision`이 `uncertain`이면 점수와 무관하게 최종 상태를 `incubating`으로 강제
   - **Taxonomy 처리**:
     - 카테고리 분류 결과가 `Uncategorized`이면 `review_required=True` 및 검토 사유 추가

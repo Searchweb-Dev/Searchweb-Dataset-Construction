@@ -246,7 +246,7 @@ EvaluationResult → 분석 dict (RuleAnalyzer._map_to_analysis_dict)
 - `src/rule/pipeline.py` — 8단계 파이프라인 함수 및 run_quality_pipeline()
 - `src/rule/config.py` — EvalConfig (파라미터 제어)
 - `src/rule/fetchers/page_fetcher.py` — HTTP fetch + Playwright 폴백
-- `src/rule/keywords_ai.py` — AI 판별 키워드 상수 (`KNOWN_AI_BRAND_TOKENS` 포함 29개 브랜드 집합)
+- `src/rule/keywords_ai.py` — AI 판별 키워드 상수 (`KNOWN_AI_BRAND_TOKENS` 포함 28개 브랜드 집합)
 - `src/rule/classifiers/` — 분류기 믹스인들
   * `ai_scope_classifier.py` — AI 사이트 여부 판정 (strong/weak 키워드 매칭 + `KNOWN_AI_BRAND_TOKENS` 도메인 힌트)
   * `taxonomy_classifier.py` — 카테고리/태그 분류 (PRIMARY_CATEGORY_KEYWORDS 기반)
