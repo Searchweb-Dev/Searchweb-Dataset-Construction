@@ -151,7 +151,8 @@ Worker는 AI 분석 전용 서비스다.
 ### Celery 세부 설정
 
 - 큐명: `analyze`
-- 라우팅: Topic exchange (`analyze.#`)
+- Exchange: `tasks` (type: topic)
+- 라우팅 키: `analyze.#`
 - Serializer: JSON
 - Worker prefetch: 1 (순차 처리)
 - Max tasks per child: 1000 (메모리 누수 방지)
@@ -599,7 +600,7 @@ Worker는 상태를 내부 메모리에 저장하지 않는다.
 API (즉시 Job ID 반환)
   ↓
 Celery Queue (비동기 처리)
-  ├─ analyze: Topic exchange (routing key: analyze.#)
+  ├─ analyze (Exchange: tasks, routing key: analyze.#)
   │  ├─ Task: analyze_url (단건)
   │  ├─ Task: analyze_urls_batch (배치)
   │  └─ Task: analyze_urls_bulk (병렬 배치)
@@ -609,7 +610,8 @@ DB (결과 저장)
 
 **큐 설정**:
 - 큐명: `analyze`
-- Exchange: Topic (type: topic)
+- Exchange: `tasks` (type: topic)
+- 라우팅 키: `analyze.#` → `analyze.default`
 - Worker prefetch: 1 (순차 처리, 동시 작업 1개 제한)
 - Serializer: JSON
 - Task routes: `src.workers.analyze_task.*` → `analyze.default`
