@@ -31,20 +31,6 @@ class ClearDescriptionLLM:
         raise NotImplementedError
 
 
-class DummyLLM(ClearDescriptionLLM):
-    """LLM 연동 전 테스트용 휴리스틱 스텁 구현체."""
-
-    def evaluate(self, payload: dict[str, str]) -> dict[str, object]:
-        """간단한 키워드 매칭으로 기능 설명 명확성을 추정한다."""
-        candidate = lower(payload.get("candidate_sentence", ""))
-        passed = any(k in candidate for k in ACTION_KEYWORDS) and any(k in candidate for k in TASK_NOUNS)
-        return {
-            "passed": passed,
-            "confidence": 0.72 if passed else 0.45,
-            "reason": "LLM 스텁 판정",
-            "summary": payload.get("candidate_sentence", ""),
-        }
-
 
 class CriteriaEvaluatorMixin:
     """품질 criteria 평가 및 weighted 점수 계산 기능을 제공하는 믹스인."""

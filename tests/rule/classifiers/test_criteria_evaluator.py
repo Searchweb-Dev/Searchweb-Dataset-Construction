@@ -2,12 +2,28 @@
 
 from unittest.mock import MagicMock
 from src.rule.classifiers.criteria_evaluator import (
+    ClearDescriptionLLM,
     CriteriaEvaluatorMixin,
     WeightedQualityEvaluator,
-    DummyLLM,
 )
 from src.rule.models import CriterionResult, FetchResult
 from src.rule.config import EvalConfig
+from src.rule.keywords import ACTION_KEYWORDS, TASK_NOUNS
+from src.rule.utils import lower
+
+
+class DummyLLM(ClearDescriptionLLM):
+    """테스트용 휴리스틱 스텁 구현체."""
+
+    def evaluate(self, payload: dict[str, str]) -> dict[str, object]:
+        candidate = lower(payload.get("candidate_sentence", ""))
+        passed = any(k in candidate for k in ACTION_KEYWORDS) and any(k in candidate for k in TASK_NOUNS)
+        return {
+            "passed": passed,
+            "confidence": 0.72 if passed else 0.45,
+            "reason": "LLM 스텁 판정",
+            "summary": payload.get("candidate_sentence", ""),
+        }
 
 
 # ---------------------------------------------------------------------------
