@@ -3,12 +3,11 @@
 # 1) 워크플로우 이름
 name: CI (Python)
 
-# 2) 언제 동작할지: main에 push/PR 시 실행
+# 2) 언제 동작할지: main/develop push 및 모든 PR 시 실행
 on:
   push:
     branches: [main, develop]
   pull_request:
-    branches: [main, develop]
 
 jobs:
   test:
