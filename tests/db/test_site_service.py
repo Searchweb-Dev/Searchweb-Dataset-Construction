@@ -61,6 +61,26 @@ class TestAIDetectorValidation:
     def test_one_confidence_passes(self):
         assert self.detector._validate_analysis(_make_analysis(confidence=1.0)) is True
 
+    def test_scores_out_of_range_fails(self):
+        analysis = _make_analysis(scores={"utility": 11, "trust": 7, "originality": 6})
+        assert self.detector._validate_analysis(analysis) is False
+
+    def test_scores_zero_fails(self):
+        analysis = _make_analysis(scores={"utility": 0, "trust": 7, "originality": 6})
+        assert self.detector._validate_analysis(analysis) is False
+
+    def test_scores_missing_field_fails(self):
+        analysis = _make_analysis(scores={"utility": 8, "trust": 7})
+        assert self.detector._validate_analysis(analysis) is False
+
+    def test_scores_not_dict_fails(self):
+        analysis = _make_analysis(scores=[8, 7, 6])
+        assert self.detector._validate_analysis(analysis) is False
+
+    def test_scores_boundary_passes(self):
+        assert self.detector._validate_analysis(_make_analysis(scores={"utility": 1, "trust": 1, "originality": 1})) is True
+        assert self.detector._validate_analysis(_make_analysis(scores={"utility": 10, "trust": 10, "originality": 10})) is True
+
 
 class TestAIDetectorSaveSite:
     """_save_site DB 저장 로직 테스트."""

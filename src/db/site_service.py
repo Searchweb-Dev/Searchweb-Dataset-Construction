@@ -93,6 +93,16 @@ class AIDetector:
             logger.warning("신뢰도 범위 오류")
             return False
 
+        scores = analysis.get("scores", {})
+        if not isinstance(scores, dict):
+            logger.warning("scores 필드 타입 오류: %s", type(scores))
+            return False
+        for score_field in ("utility", "trust", "originality"):
+            val = scores.get(score_field)
+            if not isinstance(val, (int, float)) or not 1 <= val <= 10:
+                logger.warning("scores.%s 범위 오류: %s", score_field, val)
+                return False
+
         return True
 
     def _save_site(self, url: str, analysis: dict[str, Any]) -> AISite | None:
