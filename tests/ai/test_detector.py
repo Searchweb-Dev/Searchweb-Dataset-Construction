@@ -68,6 +68,7 @@ def test_validate_analysis_valid():
         "title": "Test",
         "description": "Test description",
         "confidence": 0.95,
+        "scores": {"utility": 8, "trust": 7, "originality": 6},
     }
 
     assert detector._validate_analysis(analysis) is True
