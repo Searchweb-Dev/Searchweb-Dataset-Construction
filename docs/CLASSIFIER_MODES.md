@@ -72,11 +72,18 @@ Gemini url_context 툴로 웹사이트를 분석한다.
   - 오프라인 환경에서 동작 가능
   - requests + Playwright 폴백으로 페이지 수집
   - 5가지 품질 기준 평가 (usable_now, clear_function_desc, docs, policy, pricing)
+    - `clear_function_desc`: 문장 길이·수혜자 언급·동사+목적어 조합으로 정교 채점
   - 가중치 기반 점수화 (0~100)
   - 상태 판정: curated / incubating / rejected
+  - **AI 범위 판정**:
+    - 도메인에 `KNOWN_AI_BRAND_TOKENS`(29개 브랜드 집합) 포함 시 strong hint 적용
+    - `scope_decision`이 `uncertain`이면 점수와 무관하게 최종 상태를 `incubating`으로 강제
+  - **Taxonomy 처리**:
+    - 카테고리 분류 결과가 `Uncategorized`이면 `review_required=True` 및 검토 사유 추가
+    - `taxonomy_skipped=True`인 경우(non_ai 사이트 등)는 적용 제외
   - **Anti-bot 완충 로직**:
     - homepage 403 + 후보 URL 4개 이상 중 60% 이상이 403 → `anti_bot_blocked=True` 판정
-    - `anti_bot_blocked=True`이면 `rejected` 대신 `incubating`으로 완충 적용
+    - `anti_bot_blocked=True`이면 `rejected` 대신 `incubating`으로 완충 적용 (검토 사유 포함)
     - DB `ai_site.status`를 `"blocked"`로 저장 (재분석 대상 유지)
   - **후보 URL 수집 로깅**:
     - 수집된 후보 URL을 종류별(pricing / docs / policy / product / probe)로 INFO 로그 출력

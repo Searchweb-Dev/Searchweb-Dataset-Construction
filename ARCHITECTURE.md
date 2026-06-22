@@ -246,12 +246,13 @@ EvaluationResult → 분석 dict (RuleAnalyzer._map_to_analysis_dict)
 - `src/rule/pipeline.py` — 8단계 파이프라인 함수 및 run_quality_pipeline()
 - `src/rule/config.py` — EvalConfig (파라미터 제어)
 - `src/rule/fetchers/page_fetcher.py` — HTTP fetch + Playwright 폴백
+- `src/rule/keywords_ai.py` — AI 판별 키워드 상수 (`KNOWN_AI_BRAND_TOKENS` 포함 29개 브랜드 집합)
 - `src/rule/classifiers/` — 분류기 믹스인들
-  * `ai_scope_classifier.py` — AI 사이트 여부 판정 (strong/weak 키워드 매칭)
+  * `ai_scope_classifier.py` — AI 사이트 여부 판정 (strong/weak 키워드 매칭 + `KNOWN_AI_BRAND_TOKENS` 도메인 힌트)
   * `taxonomy_classifier.py` — 카테고리/태그 분류 (PRIMARY_CATEGORY_KEYWORDS 기반)
-  * `criteria_evaluator.py` — 5가지 품질 기준 평가 (usable_now, clear_function_desc, has_docs_or_help, has_privacy_or_data_policy, has_pricing)
+  * `criteria_evaluator.py` — 5가지 품질 기준 평가 (usable_now, clear_function_desc, has_docs_or_help, has_privacy_or_data_policy, has_pricing); `clear_function_desc`는 문장 길이·수혜자·동사+목적어 조합으로 정교 채점
   * `discovery_signals.py` — 후보 URL 수집 및 신호 추출
-  * `status_policy.py` — 상태 예측 및 리뷰 게이트
+  * `status_policy.py` — 상태 예측 및 리뷰 게이트; `uncertain` AI 범위 판정 시 `incubating` 강제, `Uncategorized` taxonomy 시 `review_required` 활성화
 
 **장점:**
 
@@ -363,11 +364,14 @@ RuleAnalyzer.analyze_website(url)
   │  ├─ step2: 신호 추출 (링크, 텍스트 분석)
   │  │  ├─ anti-bot 판정: homepage 403 + 후보 URL 4개↑ 중 60%+ 403 → anti_bot_blocked=True
   │  │  └─ 후보 URL 종류별(pricing/docs/policy/product/probe) INFO 로그 출력
-  │  ├─ step3: AI 범위 분류 (strong/weak 키워드 매칭)
-  │  ├─ step4: 분류 체계 (PRIMARY_CATEGORY_KEYWORDS)
+  │  ├─ step3: AI 범위 분류 (strong/weak 키워드 + KNOWN_AI_BRAND_TOKENS 도메인 힌트)
+  │  │  └─ scope_decision: ai / uncertain / non_ai; uncertain 이면 step6에서 incubating 강제
+  │  ├─ step4: 분류 체계 (PRIMARY_CATEGORY_KEYWORDS); Uncategorized 시 review_required 활성화
   │  ├─ step5: 기준 평가 (5가지 품질 기준)
+  │  │  └─ clear_function_desc: 문장 길이·수혜자·동사+목적어 조합으로 정교 채점
   │  ├─ step6: 점수화 및 상태 예측 (가중치 기반)
-  │  │  └─ anti_bot_blocked=True 이면 rejected → incubating 완충 적용
+  │  │  ├─ anti_bot_blocked=True 이면 rejected → incubating 완충 적용
+  │  │  └─ uncertain scope_decision 이면 최종 상태를 incubating으로 강제
   │  ├─ step7: 상태 검토 및 리뷰 게이트
   │  └─ step8: 요약 생성
   ├─ 3. EvaluationResult → 분석 dict 변환 (anti_bot_blocked 포함)
@@ -407,7 +411,7 @@ sw-test/
 │   │   ├── config.py                    # EvalConfig (파라미터 제어)
 │   │   ├── models.py                    # EvaluationResult, CriterionResult, FetchResult, Evidence
 │   │   ├── keywords.py                  # 키워드 상수 re-export (하위 호환)
-│   │   ├── keywords_ai.py               # AI/비AI 판별 키워드 (POSITIVE_USE_TEXT, AI_SITE_* 등)
+│   │   ├── keywords_ai.py               # AI/비AI 판별 키워드 (POSITIVE_USE_TEXT, AI_SITE_*, KNOWN_AI_BRAND_TOKENS 등)
 │   │   ├── keywords_category.py         # 카테고리/서브태스크/메타 키워드 상수
 │   │   ├── keywords_platform.py         # 플랫폼 감지 키워드 (PLATFORM_KEYWORDS)
 │   │   ├── utils.py                     # URL/텍스트 처리 헬퍼 함수
@@ -416,11 +420,11 @@ sw-test/
 │   │   │   └── page_fetcher.py          # PageFetcher (requests + Playwright 폴백)
 │   │   └── classifiers/
 │   │       ├── __init__.py
-│   │       ├── ai_scope_classifier.py   # AiScopeClassifierMixin (AI 사이트 판정)
+│   │       ├── ai_scope_classifier.py   # AiScopeClassifierMixin (AI 사이트 판정 + KNOWN_AI_BRAND_TOKENS 도메인 힌트)
 │   │       ├── taxonomy_classifier.py   # TaxonomyClassifierMixin (카테고리/태그 분류)
-│   │       ├── criteria_evaluator.py    # CriteriaEvaluatorMixin + WeightedQualityEvaluator
+│   │       ├── criteria_evaluator.py    # CriteriaEvaluatorMixin + WeightedQualityEvaluator (clear_function_desc 정교 채점 포함)
 │   │       ├── discovery_signals.py     # DiscoverySignalMixin (후보 URL 수집)
-│   │       └── status_policy.py         # StatusPolicyMixin (상태 예측 및 리뷰 게이트)
+│   │       └── status_policy.py         # StatusPolicyMixin (상태 예측·리뷰 게이트; uncertain→incubating 강제, Uncategorized→review_required)
 │   ├── workers/
 │   │   ├── __init__.py
 │   │   ├── celery_app.py            # Celery 앱 초기화 (큐, 라우팅, 설정)
