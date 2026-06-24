@@ -8,10 +8,10 @@ CLI 코드, registry I/O, 배치 처리 코드는 포함하지 않는다.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable
+from typing import Any
 
 from src.rule.config import EvalConfig, get_rule_config
-from src.rule.classifiers.criteria_evaluator import WeightedQualityEvaluator
+from src.rule.classifiers.criteria_evaluator import WeightedQualityEvaluator, PipelineStep
 from src.rule.fetchers.page_fetcher import PageFetcher
 from src.rule.models import EvaluationResult
 from src.rule.utils import lower
@@ -20,7 +20,6 @@ logger = logging.getLogger(__name__)
 
 
 PipelineContext = dict[str, Any]
-PipelineStep = Callable[[Any, PipelineContext], None]
 
 
 def _build_shared_text_cache(all_pages: dict[str, Any]) -> dict[str, str]:
@@ -61,15 +60,6 @@ def step_fetch_and_collect_pages(evaluator: Any, ctx: PipelineContext) -> None:
         logger.info("[%s] 후보 페이지 %d개 발견, 수집 시작", normalized_url, len(candidate_urls))
 
     candidate_workers = evaluator.config.candidate_fetch_workers
-    if (
-        evaluator.config.auto_tune_nested_parallel
-        and evaluator.config.parallel_url_evaluation
-        and evaluator.config.url_evaluation_workers > 1
-    ):
-        tuned_workers = max(1, candidate_workers // evaluator.config.url_evaluation_workers)
-        if tuned_workers == 1 and candidate_workers > 1 and len(candidate_urls) > 1:
-            tuned_workers = 2
-        candidate_workers = tuned_workers
 
     if candidate_urls and evaluator.config.parallel_candidate_fetch and candidate_workers > 1:
         fetched_candidates = evaluator.fetcher.fetch_many(
@@ -242,9 +232,8 @@ def run_quality_pipeline(
     """
     runtime_config = config or get_rule_config()
     fetcher = PageFetcher(runtime_config)
-    evaluator = WeightedQualityEvaluator(fetcher=fetcher, config=runtime_config, llm=None)
-    evaluator.set_pipeline_steps(DEFAULT_PIPELINE_STEPS)
+    evaluator = WeightedQualityEvaluator(fetcher=fetcher, config=runtime_config)
     try:
-        return evaluator.evaluate(url)
+        return evaluator.evaluate(url, DEFAULT_PIPELINE_STEPS)
     finally:
         fetcher.close()

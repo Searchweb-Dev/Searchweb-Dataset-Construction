@@ -17,8 +17,12 @@ from src.rule.keywords import (
 )
 
 
-def normalize_url(url: str) -> str:
-    """입력 URL을 스킴/호스트/경로 기준의 정규화 형태로 변환한다."""
+def normalize_url_simple(url: str) -> str:
+    """입력 URL을 스킴/호스트/경로 기준의 경량 정규화 형태로 변환한다.
+
+    rule 내부 전용. 쿼리·www 제거 없이 경로 trailing slash만 제거한다.
+    API/worker 경계에서는 src.core.url.normalize_url을 사용할 것.
+    """
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
     p = urlparse(url.strip())
@@ -202,22 +206,3 @@ def is_allowed_external_policy_link(link_text: str, href: str) -> bool:
     return any(p in lower(href) for p in ["/privacy", "/policy", "/terms", "/security"])
 
 
-def likely_related_external_candidates(homepage_url: str) -> list[str]:
-    """도메인 규칙 기반으로 추가 탐색할 외부 후보 URL 목록을 생성한다."""
-    host = get_domain(homepage_url)
-    candidates: list[str] = []
-    if host.endswith("chatgpt.com") or host.endswith("openai.com"):
-        candidates.extend([
-            "https://chatgpt.com/pricing",
-            "https://help.openai.com/en/",
-            "https://openai.com/policies/row-privacy-policy/",
-        ])
-    dedup: list[str] = []
-    seen = set()
-    for u in candidates:
-        nu = normalize_url(u)
-        if nu in seen:
-            continue
-        seen.add(nu)
-        dedup.append(nu)
-    return dedup

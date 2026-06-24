@@ -18,9 +18,8 @@ from src.rule.utils import (
     is_same_domain,
     is_strong_pricing_page,
     keyword_hit,
-    likely_related_external_candidates,
     lower,
-    normalize_url,
+    normalize_url_simple,
 )
 
 logger = logging.getLogger(__name__)
@@ -39,7 +38,7 @@ class DiscoverySignalMixin:
 
         def add_url(kind: str, u: str) -> None:
             """종류별 중복 없이 후보 URL을 추가한다."""
-            nu = normalize_url(u)
+            nu = normalize_url_simple(u)
             if nu in seen_in_kind[kind]:
                 return
             seen_in_kind[kind].add(nu)
@@ -81,8 +80,15 @@ class DiscoverySignalMixin:
                 if same_domain and any(k in blob for k in ["product", "features", "how it works", "about", "use cases", "solutions", "platform", "기능", "소개", "사용 사례"]):
                     add_url("product", href)
 
-        for seed in likely_related_external_candidates(homepage_url):
-            add_related_seed(seed)
+        # ponytail: OpenAI/ChatGPT 도메인 전용 하드코딩. 더 필요하면 config로 분리할 것.
+        host = (urlparse(homepage_url).netloc or "").lower()
+        if host.endswith("chatgpt.com") or host.endswith("openai.com"):
+            for seed in [
+                "https://chatgpt.com/pricing",
+                "https://help.openai.com/en/",
+                "https://openai.com/policies/row-privacy-policy/",
+            ]:
+                add_related_seed(seed)
 
         estimated_collected = len(kinds["pricing"]) + len(kinds["docs"]) + len(kinds["policy"]) + len(kinds["product"])
         if (not homepage.ok) or estimated_collected < min(4, self.config.max_total_candidate_pages):

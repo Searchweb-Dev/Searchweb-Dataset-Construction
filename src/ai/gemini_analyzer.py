@@ -21,10 +21,9 @@ from src.ai.response_parser import (
     check_finish_reason,
     compute_quality_fields,
 )
-from src.core.error_policy import (
-    ApiErrorKind,
-    classify_api_error,
-    get_policy,
+from src.core.error_policy import ApiErrorKind, classify_api_error, get_policy
+from src.core.exceptions import (
+    SiteUnreachableError,
     RateLimitError,
     ApiServerUnavailableError,
     ApiServerInternalError,
@@ -34,7 +33,6 @@ from src.core.error_policy import (
     ApiPreconditionError,
     ApiNotFoundError,
 )
-from src.core.exceptions import SiteUnreachableError
 from src.ai.prompts import SYSTEM_PROMPT, ANALYSIS_PROMPT, BATCH_ANALYSIS_PROMPT
 
 logger = logging.getLogger(__name__)

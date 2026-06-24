@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import re
 import logging
-from typing import Any, Callable, Iterable
+from typing import Any, Callable
 
 from src.rule.config import EvalConfig
 from src.rule.classifiers.ai_scope_classifier import AiScopeClassifierMixin
@@ -16,19 +16,12 @@ from src.rule.fetchers.page_fetcher import PageFetcher
 from src.rule.models import CriterionResult, EvaluationResult, Evidence, FetchResult
 from src.rule.classifiers.status_policy import StatusPolicyMixin
 from src.rule.classifiers.taxonomy_classifier import TaxonomyClassifierMixin
-from src.rule.utils import has_usable_url_hint, is_same_domain, keyword_hit, lower, normalize_url, snippet, split_sentences
+from src.core.url import normalize_url
+from src.rule.utils import has_usable_url_hint, is_same_domain, keyword_hit, lower, snippet, split_sentences
 
 logger = logging.getLogger(__name__)
 
-PipelineStep = Callable[[Any, dict[str, object]], None]
-
-
-class ClearDescriptionLLM:
-    """기능 설명 명확성 판정용 LLM 인터페이스."""
-
-    def evaluate(self, payload: dict[str, str]) -> dict[str, object]:
-        """입력 payload를 받아 기능 설명 판정 결과를 반환한다."""
-        raise NotImplementedError
+PipelineStep = Callable[[Any, dict[str, Any]], None]
 
 
 
@@ -212,26 +205,6 @@ class CriteriaEvaluatorMixin:
             best_score += 0.1
         best_score = max(0.0, min(best_score, 1.0))
 
-        llm = getattr(self, "llm", None)
-        if self.config.enable_llm_for_clear_desc and llm and 0.35 <= best_score < 0.75:
-            llm_out = llm.evaluate(
-                {
-                    "url": homepage.final_url,
-                    "title": homepage.title,
-                    "meta_description": homepage.meta_description,
-                    "homepage_text": homepage.text[:2500],
-                    "candidate_sentence": best_sentence,
-                }
-            )
-            evidence.append(Evidence(best_url, snippet(str(llm_out.get("summary", best_sentence)) or best_sentence), "llm_interpreted_desc"))
-            return CriterionResult(
-                name="clear_function_desc",
-                passed=bool(llm_out.get("passed", False)),
-                reason=str(llm_out.get("reason", "")) or "LLM 보조 판정",
-                confidence=float(llm_out.get("confidence", 0.5)),
-                evidence=evidence,
-            )
-
         if best_sentence:
             evidence.append(Evidence(best_url, snippet(best_sentence), "desc_sentence"))
         passed = best_score >= 0.55 and bool(best_sentence)
@@ -384,43 +357,29 @@ class CriteriaEvaluatorMixin:
         return weighted_points, total, criterion_scores
 
 
-class BaseToolQualityEvaluator(
+class WeightedQualityEvaluator(
     DiscoverySignalMixin,
     AiScopeClassifierMixin,
     TaxonomyClassifierMixin,
     CriteriaEvaluatorMixin,
     StatusPolicyMixin,
 ):
-    """파이프라인 오케스트레이션과 결과 조립을 담당하는 코어 평가기."""
+    """가중치 점수 기반 품질 평가 정책을 구현한 evaluator."""
 
-    def __init__(
-        self,
-        fetcher: PageFetcher,
-        config: EvalConfig | None = None,
-        llm: ClearDescriptionLLM | None = None,
-    ):
-        """설정/수집기(fetcher)/파이프라인 스텝 컨테이너를 초기화한다."""
+    def __init__(self, fetcher: PageFetcher, config: EvalConfig | None = None):
+        """설정과 수집기를 초기화한다."""
         self.config = config or EvalConfig()
         self.fetcher = fetcher
-        self.llm = llm
-        self.pipeline_steps: list[PipelineStep] = []
 
-    def set_pipeline_steps(self, steps: Iterable[PipelineStep]) -> None:
-        """실행 스텝 순서를 외부에서 주입한다."""
-        self.pipeline_steps = list(steps)
-
-    def evaluate(self, url: str) -> EvaluationResult:
+    def evaluate(self, url: str, pipeline_steps: list[PipelineStep]) -> EvaluationResult:
         """단일 URL에 대해 파이프라인을 실행하고 EvaluationResult를 반환한다."""
         context: dict[str, Any] = {
             "input_url": url,
             "normalized_url": normalize_url(url),
         }
-        if not self.pipeline_steps:
-            raise RuntimeError("pipeline steps are not configured. call set_pipeline_steps(...) before evaluate().")
-        for step in self.pipeline_steps:
+        for step in pipeline_steps:
             step(self, context)
         ctx = context
-
         return EvaluationResult(
             input_url=ctx["input_url"],
             normalized_url=ctx["normalized_url"],
@@ -436,10 +395,6 @@ class BaseToolQualityEvaluator(
             total_score=ctx.get("score_context", {}).get("total_score"),
             score_breakdown=ctx.get("score_context", {}).get("score_breakdown"),
         )
-
-
-class WeightedQualityEvaluator(BaseToolQualityEvaluator):
-    """가중치 점수 기반 품질 평가 정책을 구현한 evaluator."""
 
     def _build_score_context(self, criteria: dict[str, CriterionResult]) -> dict[str, object]:
         """기준별 점수 상세/총점/기준 점수를 포함한 score context를 생성한다."""

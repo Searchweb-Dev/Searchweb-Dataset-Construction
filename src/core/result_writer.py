@@ -86,43 +86,6 @@ def _to_failed_entry(url: str, error: str, checked_at: str) -> dict[str, Any]:
     }
 
 
-# batch/file이 미처리 항목을 자동 필터링하므로 현재 호출되지 않으나,
-# 수동 재처리 용도로 유지한다.
-def extract_unprocessed(result_path: str) -> str | None:
-    """결과 파일에서 미처리 항목을 추출해 별도 JSON으로 저장한다.
-
-    미처리 항목 기준: is_ai_tool 키가 없는 원본 그대로의 항목.
-    추출 결과는 data/ 디렉토리에 <원본명>_unprocessed_<타임스탬프>.json으로 저장된다.
-    DB 저장은 하지 않는다.
-
-    Args:
-        result_path: 부분 처리된 결과 파일 경로.
-
-    Returns:
-        저장된 파일 경로. 미처리 항목이 없거나 저장 실패 시 None.
-    """
-    items = _load_source(result_path)
-    unprocessed = [item for item in items if "is_ai_tool" not in item]
-
-    if not unprocessed:
-        logger.info("미처리 항목 없음: %s", result_path)
-        return None
-
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
-    name, ext = os.path.splitext(os.path.basename(result_path))
-    out_path = os.path.join(_DATA_DIR, f"{name}_unprocessed_{ts}{ext}")
-
-    try:
-        with open(out_path, "w", encoding="utf-8") as f:
-            json.dump(unprocessed, f, ensure_ascii=False, indent=2)
-            f.write("\n")
-        logger.info("미처리 항목 저장: %s (%d건)", out_path, len(unprocessed))
-        return out_path
-    except Exception as e:
-        logger.error("미처리 항목 저장 실패: %s", e)
-        return None
-
-
 def write_batch(
     results: list[tuple[str, dict[str, Any]]],
     checked_at: str | None = None,

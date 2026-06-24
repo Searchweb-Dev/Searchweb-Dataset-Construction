@@ -18,7 +18,7 @@ from urllib3.util.retry import Retry
 
 from src.rule.config import EvalConfig
 from src.rule.models import FetchResult
-from src.rule.utils import lower, normalize_url, squash_ws
+from src.rule.utils import lower, normalize_url_simple, squash_ws
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ class PageFetcher:
 
     def fetch(self, url: str, lightweight: bool = False) -> FetchResult:
         """URL을 수집하고 requests/playwright 중 더 나은 결과를 반환한다."""
-        normalized = normalize_url(url)
+        normalized = normalize_url_simple(url)
         req_result = self._fetch_with_requests(normalized)
 
         if not self.playwright_enabled:
@@ -90,7 +90,7 @@ class PageFetcher:
                     results[url] = future.result()
                 except Exception as e:
                     logger.error("[%s] fetch_many 도중 예외 발생: %s", url, e)
-                    normalized = normalize_url(url)
+                    normalized = normalize_url_simple(url)
                     results[url] = FetchResult(
                         url=normalized,
                         final_url=normalized,

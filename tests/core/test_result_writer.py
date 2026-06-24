@@ -8,7 +8,6 @@ from src.core.result_writer import (
     _load_source,
     _to_entry,
     _to_failed_entry,
-    extract_unprocessed,
     write_batch,
 )
 
@@ -130,34 +129,6 @@ class TestToFailedEntry:
         entry = _to_failed_entry("https://example.com", "error msg", "2024-01-01")
         assert entry["name"] == ""
         assert entry["desc"] == ""
-
-
-class TestExtractUnprocessed:
-    """extract_unprocessed 미처리 항목 추출 검증."""
-
-    def test_returns_none_when_no_unprocessed(self, tmp_path, monkeypatch):
-        import src.core.result_writer as rw
-        monkeypatch.setattr(rw, "_DATA_DIR", str(tmp_path))
-        f = tmp_path / "result.json"
-        f.write_text(json.dumps([{"link": "https://a.com", "is_ai_tool": True}]))
-        result = extract_unprocessed(str(f))
-        assert result is None
-
-    def test_extracts_items_without_is_ai_tool(self, tmp_path, monkeypatch):
-        import src.core.result_writer as rw
-        monkeypatch.setattr(rw, "_DATA_DIR", str(tmp_path))
-        data = [
-            {"link": "https://a.com", "is_ai_tool": True},
-            {"link": "https://b.com"},  # 미처리 항목
-        ]
-        f = tmp_path / "result.json"
-        f.write_text(json.dumps(data))
-        out = extract_unprocessed(str(f))
-        assert out is not None
-        with open(out) as fp:
-            saved = json.load(fp)
-        assert len(saved) == 1
-        assert saved[0]["link"] == "https://b.com"
 
 
 class TestWriteBatch:

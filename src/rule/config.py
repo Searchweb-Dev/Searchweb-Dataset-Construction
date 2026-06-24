@@ -23,7 +23,6 @@ class EvalConfig:
     candidate_fetch_workers: int = 4                     # 후보 페이지 병렬 수집 워커 수
     parallel_url_evaluation: bool = True                 # 입력 URL 목록 병렬 평가 여부
     url_evaluation_workers: int = 3                      # URL 병렬 평가 워커 수
-    auto_tune_nested_parallel: bool = True               # URL/후보 병렬 중첩 시 후보 워커 자동 축소 여부
     skip_inter_url_delay_in_parallel: bool = True        # URL 병렬 시 inter_url_delay 적용 생략 여부
 
     min_curated_count: int = 4                           # count 기반 정책에서 curated 최소 통과 개수

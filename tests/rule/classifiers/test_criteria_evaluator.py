@@ -2,28 +2,11 @@
 
 from unittest.mock import MagicMock
 from src.rule.classifiers.criteria_evaluator import (
-    ClearDescriptionLLM,
     CriteriaEvaluatorMixin,
     WeightedQualityEvaluator,
 )
 from src.rule.models import CriterionResult, FetchResult
 from src.rule.config import EvalConfig
-from src.rule.keywords import ACTION_KEYWORDS, TASK_NOUNS
-from src.rule.utils import lower
-
-
-class DummyLLM(ClearDescriptionLLM):
-    """테스트용 휴리스틱 스텁 구현체."""
-
-    def evaluate(self, payload: dict[str, str]) -> dict[str, object]:
-        candidate = lower(payload.get("candidate_sentence", ""))
-        passed = any(k in candidate for k in ACTION_KEYWORDS) and any(k in candidate for k in TASK_NOUNS)
-        return {
-            "passed": passed,
-            "confidence": 0.72 if passed else 0.45,
-            "reason": "LLM 스텁 판정",
-            "summary": payload.get("candidate_sentence", ""),
-        }
 
 
 # ---------------------------------------------------------------------------
@@ -61,29 +44,6 @@ class ConcreteCriteriaEval(CriteriaEvaluatorMixin):
     """테스트용 구체 클래스."""
     def __init__(self, config=None):
         self.config = config or EvalConfig()
-        self.llm = None
-
-
-# ---------------------------------------------------------------------------
-# DummyLLM
-# ---------------------------------------------------------------------------
-
-class TestDummyLLM:
-    def test_passed_when_action_and_noun(self):
-        llm = DummyLLM()
-        result = llm.evaluate({"candidate_sentence": "generate images using AI models"})
-        assert result["passed"] is True
-
-    def test_not_passed_when_generic(self):
-        llm = DummyLLM()
-        result = llm.evaluate({"candidate_sentence": "we are the best platform"})
-        assert result["passed"] is False
-
-    def test_returns_required_keys(self):
-        llm = DummyLLM()
-        result = llm.evaluate({"candidate_sentence": "test"})
-        for k in ("passed", "confidence", "reason"):
-            assert k in result
 
 
 # ---------------------------------------------------------------------------

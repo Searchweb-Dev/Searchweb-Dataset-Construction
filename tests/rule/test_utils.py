@@ -1,7 +1,7 @@
 """src/rule/utils.py — 유틸 함수 단위 테스트."""
 
 from src.rule.utils import (
-    normalize_url,
+    normalize_url_simple as normalize_url,
     get_domain,
     is_same_domain,
     squash_ws,
@@ -18,7 +18,6 @@ from src.rule.utils import (
     is_strong_pricing_page,
     is_allowed_external_docs_link,
     is_allowed_external_policy_link,
-    likely_related_external_candidates,
 )
 
 
@@ -267,15 +266,3 @@ class TestIsAllowedExternalPolicyLink:
         assert is_allowed_external_policy_link("Blog", "https://example.com/blog") is False
 
 
-class TestLikelyRelatedExternalCandidates:
-    def test_openai_returns_candidates(self):
-        result = likely_related_external_candidates("https://chatgpt.com")
-        assert len(result) > 0
-
-    def test_unknown_domain_returns_empty(self):
-        result = likely_related_external_candidates("https://unknownsite.com")
-        assert result == []
-
-    def test_no_duplicates(self):
-        result = likely_related_external_candidates("https://chatgpt.com")
-        assert len(result) == len(set(result))

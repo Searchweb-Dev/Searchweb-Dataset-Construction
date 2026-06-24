@@ -34,11 +34,6 @@ def _map_primary_category(primary_category: str) -> tuple[str, str]:
     return _CATEGORY_MAP.get(primary_category, _DEFAULT_CATEGORY)
 
 
-def _clamp_score(value: int, min_val: int = 1, max_val: int = 10) -> int:
-    """정수값을 [min_val, max_val] 범위로 클램프한다."""
-    return max(min_val, min(max_val, value))
-
-
 def _map_to_analysis_dict(result: EvaluationResult, input_url: str) -> dict[str, Any]:
     """EvaluationResult를 detector.py가 기대하는 분석 dict로 변환한다.
 
@@ -102,7 +97,7 @@ def _map_to_analysis_dict(result: EvaluationResult, input_url: str) -> dict[str,
             utility_raw = 5
     else:
         utility_raw = 5
-    score_utility = _clamp_score(utility_raw)
+    score_utility = max(1, min(10, utility_raw))
 
     criteria = result.criteria if isinstance(result.criteria, dict) else {}
     privacy_criterion: CriterionResult | None = criteria.get("has_privacy_or_data_policy")
@@ -113,7 +108,7 @@ def _map_to_analysis_dict(result: EvaluationResult, input_url: str) -> dict[str,
             trust_raw = 5
     else:
         trust_raw = 5
-    score_trust = _clamp_score(trust_raw)
+    score_trust = max(1, min(10, trust_raw))
 
     return {
         "is_ai_tool": is_ai_tool,
