@@ -37,7 +37,7 @@ def blocked_response() -> dict[str, Any]:
     """크롤링 차단 사이트용 응답 구조."""
     return {
         "is_ai_tool": False,
-        "title": "Unknown",
+        "title": None,
         "description": "크롤링 차단으로 분석 불가",
         "categories": [],
         "tags": [],
