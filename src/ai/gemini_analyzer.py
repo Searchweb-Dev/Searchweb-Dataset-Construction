@@ -61,9 +61,9 @@ _SITE_SCHEMA = {
         "scores": {
             "type": "object",
             "properties": {
-                "utility": {"type": "integer"},
-                "trust": {"type": "integer"},
-                "originality": {"type": "integer"},
+                "utility": {"type": "integer", "minimum": 0, "maximum": 10},
+                "trust": {"type": "integer", "minimum": 0, "maximum": 10},
+                "originality": {"type": "integer", "minimum": 0, "maximum": 10},
             },
             "required": ["utility", "trust", "originality"],
         },
@@ -130,6 +130,8 @@ class GeminiAnalyzer:
 
         result = parse_single(response)
         result["analyzer"] = "gemini"
+        if not result.get("is_ai_tool"):
+            result["scores"] = {"utility": 0, "trust": 0, "originality": 0}
         result.update(compute_quality_fields(result))
 
         elapsed = time.time() - start_time
@@ -164,6 +166,8 @@ class GeminiAnalyzer:
 
         results = parse_batch(response, urls)
         for r in results:
+            if not r.get("is_ai_tool"):
+                r["scores"] = {"utility": 0, "trust": 0, "originality": 0}
             r.update(compute_quality_fields(r))
 
         elapsed = time.time() - start_time
