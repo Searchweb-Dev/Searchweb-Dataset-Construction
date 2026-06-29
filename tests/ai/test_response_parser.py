@@ -38,6 +38,7 @@ class TestParseSingle:
     def _make_response(self, text: str) -> MagicMock:
         resp = MagicMock()
         resp.text = text
+        resp.candidates = [MagicMock()]
         return resp
 
     def test_parses_valid_json(self):
@@ -58,9 +59,11 @@ class TestParseSingle:
         result = parse_single(resp)
         assert result == default_response()
 
-    def test_returns_default_when_no_text_attr(self):
-        resp = MagicMock(spec=[])  # text 속성 없음
+    def test_returns_blocked_when_no_candidates(self):
+        resp = MagicMock()
+        resp.candidates = []  # candidate 없음 = 크롤링 차단
         result = parse_single(resp)
+        assert result["anti_bot_blocked"] is True
         assert result["is_ai_tool"] is False
 
 

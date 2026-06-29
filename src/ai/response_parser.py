@@ -29,11 +29,32 @@ def default_response() -> dict[str, Any]:
         "total_score": 0.0,
         "hard_pass": False,
         "review_required": True,
+        "parse_failed": True,
+    }
+
+
+def blocked_response() -> dict[str, Any]:
+    """크롤링 차단 사이트용 응답 구조."""
+    return {
+        "is_ai_tool": False,
+        "title": "Unknown",
+        "description": "크롤링 차단으로 분석 불가",
+        "categories": [],
+        "tags": [],
+        "scores": {"utility": 0, "trust": 0, "originality": 0},
+        "confidence": 0,
+        "total_score": 0.0,
+        "hard_pass": False,
+        "review_required": True,
+        "anti_bot_blocked": True,
     }
 
 
 def parse_single(response: Any) -> dict[str, Any]:
     """단건 응답 파싱 — Structured Output이므로 직접 파싱."""
+    if not response.candidates:
+        logger.warning("Gemini candidate 없음 — 크롤링 차단으로 판단")
+        return blocked_response()
     try:
         if response.text:
             return json.loads(response.text)
@@ -72,7 +93,8 @@ def check_finish_reason(url: str, response: Any) -> None:
     try:
         candidate = response.candidates[0] if response.candidates else None
         if candidate is None:
-            logger.warning("[%s] Gemini 응답에 candidate가 없습니다.", url)
+            block_reason = getattr(getattr(response, "prompt_feedback", None), "block_reason", None)
+            logger.warning("[%s] Gemini 응답에 candidate가 없습니다. block_reason=%s", url, block_reason)
             return
         finish_reason = candidate.finish_reason
         reason_name = finish_reason.name if finish_reason else "UNKNOWN"
