@@ -2,6 +2,7 @@
 
 import pytest
 from unittest.mock import MagicMock, patch
+from src.ai.response_parser import blocked_response, default_response
 from src.db.site_service import AIDetector
 from src.core.exceptions import SiteUnreachableError, RateLimitError
 
@@ -65,9 +66,10 @@ class TestAIDetectorValidation:
         analysis = _make_analysis(scores={"utility": 11, "trust": 7, "originality": 6})
         assert self.detector._validate_analysis(analysis) is False
 
-    def test_scores_zero_fails(self):
-        analysis = _make_analysis(scores={"utility": 0, "trust": 7, "originality": 6})
-        assert self.detector._validate_analysis(analysis) is False
+    def test_scores_zero_passes(self):
+        """scores=0은 is_ai_tool 여부와 무관하게 유효하다."""
+        assert self.detector._validate_analysis(_make_analysis(scores={"utility": 0, "trust": 0, "originality": 0})) is True
+        assert self.detector._validate_analysis(_make_analysis(is_ai_tool=False, scores={"utility": 0, "trust": 0, "originality": 0})) is True
 
     def test_scores_missing_field_fails(self):
         analysis = _make_analysis(scores={"utility": 8, "trust": 7})
@@ -80,6 +82,14 @@ class TestAIDetectorValidation:
     def test_scores_boundary_passes(self):
         assert self.detector._validate_analysis(_make_analysis(scores={"utility": 1, "trust": 1, "originality": 1})) is True
         assert self.detector._validate_analysis(_make_analysis(scores={"utility": 10, "trust": 10, "originality": 10})) is True
+
+    def test_parse_failed_flag_fails(self):
+        """Gemini 파싱 실패(default_response) 응답은 검증 실패해야 한다."""
+        assert self.detector._validate_analysis(default_response()) is False
+
+    def test_anti_bot_blocked_passes(self):
+        """크롤링 차단 사이트(blocked_response)는 검증을 통과해야 한다."""
+        assert self.detector._validate_analysis(blocked_response()) is True
 
 
 class TestAIDetectorSaveSite:

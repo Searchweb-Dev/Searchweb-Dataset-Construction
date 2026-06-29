@@ -88,6 +88,14 @@ class AIDetector:
 
     def _validate_analysis(self, analysis: dict[str, Any]) -> bool:
         """분석 결과 유효성 검증."""
+        if analysis.get("parse_failed"):
+            logger.warning("Gemini 파싱 실패 응답 — 저장 건너뜀")
+            return False
+
+        if analysis.get("anti_bot_blocked"):
+            logger.warning("크롤링 차단 사이트 — blocked 상태로 저장")
+            return True
+
         required_fields = ["is_ai_tool", "title", "description", "confidence"]
         for field in required_fields:
             if field not in analysis:
@@ -104,7 +112,7 @@ class AIDetector:
             return False
         for score_field in ("utility", "trust", "originality"):
             val = scores.get(score_field)
-            if not isinstance(val, (int, float)) or not 1 <= val <= 10:
+            if not isinstance(val, (int, float)) or not 0 <= val <= 10:
                 logger.warning("scores.%s 범위 오류: %s", score_field, val)
                 return False
 
